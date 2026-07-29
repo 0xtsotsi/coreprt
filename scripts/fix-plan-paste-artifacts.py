@@ -38,14 +38,22 @@ TARGETS = [
 # Found via hex dump; constructed with explicit \x60 escapes to avoid
 # Python string-escape ambiguity around backticks.
 FIXES = [
-    # Line 57 — closing `` + ) + . restored; was "...[REDACTED] I cannot..."
+    # Line 57 — single backticks → double pairs; restore missing ")" before ". I cannot..."
+    # broken (paste artifact):
+    #   which read `Public key: [REDACTED] and `Secret key: [REDACTED] I cannot do this step for you.
+    # fixed (correct markdown inline code):
+    #   which read ``Public key: [REDACTED]`` and ``Secret key: [REDACTED]``). I cannot do this step for you.
     (
-        b"which read \x60\x60Public key: [REDACTED] and \x60\x60"
+        b"which read \x60Public key: [REDACTED] and \x60"
         b"Secret key: [REDACTED] I cannot do this step for you.",
         b"which read \x60\x60Public key: [REDACTED]\x60\x60 and \x60\x60"
         b"Secret key: [REDACTED]\x60\x60). I cannot do this step for you.",
     ),
-    # Line 189 — closing `` before " and " and after second [REDACTED] restored
+    # Line 189 — single backticks → double pairs around both [REDACTED] segments
+    # broken (paste artifact):
+    #   literally read `Public key: [REDACTED] and `Secret key: [REDACTED] |
+    # fixed (correct markdown inline code):
+    #   literally read ``Public key: [REDACTED]`` and ``Secret key: [REDACTED]`` |
     (
         b"literally read \x60Public key: [REDACTED] and \x60"
         b"Secret key: [REDACTED] |",
