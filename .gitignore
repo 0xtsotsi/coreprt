@@ -1,0 +1,32 @@
+# CorePrt — local-only paths; never commit
+
+# Secrets — never commit
+CorePrt-deploy/.env
+CorePrt-deploy/creds.json
+CorePrt-deploy/cert.pem
+CorePrt-cloudflare/creds.json
+CorePrt-cloudflare/cert.pem
+CorePrt-cloudflare/<TUNNEL_ID>*.json
+
+# Local backups, dated snapshots, logs — personal artifacts
+CorePrt-*-backup-*.txt
+CorePrt-*-2026-*.json
+CorePrt-*-2026-*.txt
+CorePrt-*-keygen-output.txt
+
+# block/buzz source — cloned as a sibling working tree, NOT vendored
+# or tracked as a submodule. The clone has its own .git/ and the
+# upstream repo's own .gitignore covers its build output. We just
+# exclude the entire clone from this repo. See README.md for the
+# clone command.
+CorePrt-relay/
+
+# Bundle backups — stored locally only
+CorePrt-bundles/
+
+# macOS / editor noise
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/

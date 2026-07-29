@@ -1,0 +1,28 @@
+# tunnel.yml — CorePrt cloudflared config
+#
+# One-time setup:
+#   cloudflared tunnel login                    # authorise against Cloudflare dashboard
+#   cloudflared tunnel create coreprt
+#     # writes ~/.cloudflared/<TUNNEL_ID>.json and prints <TUNNEL_ID>
+#   # Replace the TUNNEL_ID below, then:
+#   cloudflared tunnel route dns coreprt coreprt.webrnds.com
+#   cloudflared tunnel run coreprt              # foreground smoke-test
+#
+# Service launch (auto-start after boot):
+#   brew services start cloudflared
+#   # the daemon reads /opt/homebrew/etc/cloudflared/config.yml — symlink to this file.
+tunnel: coreprt
+credentials-file: /Users/gogetta/.cloudflared/<TUNNEL_ID>.json
+protocol: auto
+
+ingress:
+  # WebSocket path also goes through HTTPS — cloudflared re-routes by Host.
+  - hostname: coreprt.webrnds.com
+    service: http://127.0.0.1:3300
+    originRequest:
+      connectTimeout: 10s
+      noTLSVerify: false
+      keepAliveConnections: 4
+      httpHostHeader: coreprt.webrnds.com
+  # catch-all: 404 from a tunnel, not the relay
+  - service: http_status:404
