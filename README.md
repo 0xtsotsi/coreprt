@@ -3,7 +3,7 @@
 A workspace where humans and agents build together, on a relay you own.
 
 **Product codename:** CorePrt (local alias for `block/buzz`).
-**Public URL (planned):** `https://coreprt.webrnds.com` — Cloudflare-tunneled, email-locked.
+**Public URL (planned):** `https://coreprt.webrnds.com` — Cloudflare-tunneled, behind a multi-policy Access posture (see [`docs/access-policy.md`](docs/access-policy.md)).
 **Local URL (works today):** `http://127.0.0.1:3300` — relay reachable on the loopback only.
 **First boot:** 2026-07-29 07:48 UTC — relay passed `_liveness` and rejected unknown hosts with the canonical error.
 
@@ -86,7 +86,7 @@ COMPOSE_PROJECT_NAME=coreprt ./run.sh logs relay
 ./run.sh status
 
 # Add yourself as the owner once you have a Nostr keypair
-# (generate one with a tiny node script — see CorePrt-relay/keys.md, todo)
+# (generate one in a real TTY — see CorePrt-owner-keygen.md; the relay redacts both keys on stdout capture)
 ./run.sh add-member <npub-or-hex> --role admin
 
 # Stop the stack (keeps volumes)
@@ -118,8 +118,8 @@ In Cloudflare for the `webrnds.com` zone:
 2. `Access → Applications → Add → Self-hosted`
    - **Name:** `CorePrt`
    - **Domain:** `coreprt.webrnds.com`
-   - **Policy:** name `owner-only`, action `Allow`, **Session duration** 24h
-   - **Include:** Emails → `gogetta`
+   - **Policies:** three Allow rules per [`docs/access-policy.md`](docs/access-policy.md) —
+     `owner-trusted-mac` (24h), `owner-anywhere` (1h, US-only), `service-token-buzz-mcp` (no session).
    - This gates both `https://coreprt.webrnds.com` and the WebSocket path
      `wss://coreprt.webrnds.com`.
    - **Important:** Access policies require the orange-cloud (proxied) state. Order matters.
