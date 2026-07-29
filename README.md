@@ -159,8 +159,8 @@ sudo cloudflared service install    # registers /Library/LaunchDaemons/...
 ```
 
 The relay stack itself is `restart: unless-stopped`, so `colima start` after a reboot brings
-Postgres/Redis/MinIO/Relay back automatically. If you want dedicated launchd:
-see `CorePrt-deploy/launchd/com.gogetta.coreprt.plist` (todo).
+Postgres/Redis/MinIO/Relay back automatically. (Dedicated launchd plist not shipped — the
+compose restart policy is sufficient for the single-host deploy.)
 
 ### Step 4 — generate the owner keypair + invite
 
