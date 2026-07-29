@@ -70,7 +70,8 @@ that bootstrapped this repo lives at
 The relay only accepts the configured community (`coreprt.webrnds.com`). Today that DNS doesn't
 exist yet, so the relay correctly returns `404 — no community is configured for this host`
 on `127.0.0.1:3300`. **That is the desired state for now.** Once Cloudflare Access + DNS
-are in, the same relay will serve over HTTPS to anyone with your allowlisted email.
+are in, the same relay will serve over HTTPS to anyone cleared by the multi-policy posture
+in [`docs/access-policy.md`](docs/access-policy.md).
 
 ---
 
