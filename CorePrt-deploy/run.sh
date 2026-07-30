@@ -9,6 +9,10 @@ if [[ "${BUZZ_COMPOSE_TLS:-false}" == "true" ]]; then
   COMPOSE_FILES+=(-f compose.caddy.yml)
 fi
 if [[ "${BUZZ_COMPOSE_DEV:-false}" == "true" ]]; then
+  if [[ ! -f compose.dev.yml ]]; then
+    echo "BUZZ_COMPOSE_DEV=true but compose.dev.yml is missing in $(pwd)" >&2
+    exit 1
+  fi
   COMPOSE_FILES+=(-f compose.dev.yml)
 fi
 
@@ -26,7 +30,7 @@ script once it lands. Do not start production with generated secrets missing.
 MSG
     exit 1
   fi
-  if grep -Eq '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=.*CHANGE_ME' .env; then
+  if grep -Eq '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=CHANGE_ME[[:space:]]*$' .env; then
     cat >&2 <<'MSG'
 deploy/compose/.env still contains CHANGE_ME placeholders.
 Generate stable secrets first; these values must not rotate on restart.

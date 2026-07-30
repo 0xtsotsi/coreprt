@@ -205,20 +205,29 @@ and add each as `--role member` (not admin).
   Locally we use `cloudflared` instead, which terminates TLS at the Cloudflare edge. Same
   effective security profile; we don't double-cert.
 - **The relay rejects `127.0.0.1` because no community is bound.** This is expected — the
-  `BUZZ_DOMAIN` regex binds the community to a *public host*. To smoke-test from the loopback
-  during development, set `BUZZ_DOMAIN=127.0.0.1` in `.env` and restart; undo before exposing.
-- **Cloudflare Access policy uses three Allow rules** (trusted-mac, anywhere, service-token) per [`docs/access-policy.md`](docs/access-policy.md). I will *not* modify these without your explicit say-so. A misconfigured public relay is a discoverable system.
+  `BUZZ_DOMAIN` regex binds the community to a *public host*. Setting `BUZZ_DOMAIN=127.0.0.1`
+  won't help; the bootstrap owner pubkey (currently `0000…01` placeholder) is what gates writes,
+  and that check is host-agnostic. For a real loopback smoke-test, generate the owner keypair
+  per `CorePrt-owner-keygen.md`, paste the **hex pubkey** (not the `npub1…` form) into
+  `RELAY_OWNER_PUBKEY`, and keep `BUZZ_DOMAIN=coreprt.webrnds.com`. The relay expects the
+  hex encoding shown by `buzz-admin generate-key`; `npub1…` and hex are not interchangeable
+  and pasting `npub1…` will leave owner authorization broken.
+- **Cloudflare Access policy uses two Allow rules** (`owner-trusted-mac` + `owner-anywhere`) per [`docs/access-policy.md`](docs/access-policy.md). The original third policy `service-token-buzz-mcp` was retired — service tokens were deleted and the policy is gone; see `docs/2026-07-30-final-policy-and-warp-pending.md`. I will *not* modify these without your explicit say-so. A misconfigured public relay is a discoverable system.
 - **Cloudflare DNS for `webrnds.com` isn't currently in `~/.cloudflared`** — I haven't probed
   for a stored certificate. The dashboard steps above assume you (a) own the zone in CF and
   (b) have API credentials available. If neither is true yet, that's the next blocker to
   resolve — say the word and I'll wire a personal proxy upstream.
 - **No git-data or git hooks are configured.** `buzz-git-data` volume is created but unused.
   We can mount a project in once the relay has its first admin.
-- **`cloudflared` is installed but not yet authenticated and no tunnel exists yet.** The
-  Step 2 commands require a Cloudflare account + browser login; `tunnel create` writes a
-  JSON credentials file to `~/.cloudflared/<TUNNEL_ID>.json` (path referenced in tunnel.yml).
-  Re-run Step 2 from scratch on any machine and the credentials file needs to travel with
-  the tunnel registration. Back it up.
+- **`cloudflared` is installed.** A tunnel (`c40f4029-2ba3-4182-b1c4-b9cab95c305e` on this
+  Mac) already exists in the Cloudflare account **and is already bound** to
+  `coreprt.webrnds.com`; the credentials JSON lives at
+  `~/.cloudflared/c40f4029-2ba3-4182-b1c4-b9cab95c305e.json` (host-local, not tracked).
+  Step 2 commands require a Cloudflare account + browser login; reserve `cloudflared
+  tunnel create coreprt` for genuinely new tunnels. To bind a new tunnel on a different
+  host, copy its credentials JSON to the path referenced in `CorePrt-cloudflare/tunnel.yml`
+  and re-run `cloudflared tunnel route dns coreprt coreprt.webrnds.com`. Back up the
+  credentials JSON — it is the only way to reconnect an existing tunnel.
 - **`brew services start cloudflared` is the documented persistent option on macOS**, but
   it expects `/opt/homebrew/etc/cloudflared/config.yml` (symlinked in the README). If you
   use a different path, the daemon won't start.
@@ -231,7 +240,7 @@ and add each as `--role member` (not admin).
 | - | -------- | ---------------- |
 | D1 | **Owner keypair** — generate now (give you a `nsec1…` to back up) or wait? | Generate now |
 | D2 | **`coreprt.webrnds.com` DNS zone** — does Cloudflare already host `webrnds.com`? | Assume yes |
-| D3 | **Cloudflare Access** — multi-policy posture (trusted-mac + anywhere + service-token), see [`docs/access-policy.md`](docs/access-policy.md) | Approved (multi-policy) |
+| D3 | **Cloudflare Access** — two-policy posture (trusted-mac + anywhere), see [`docs/access-policy.md`](docs/access-policy.md). The original third policy `service-token-buzz-mcp` was retired; see `docs/2026-07-30-final-policy-and-warp-pending.md`. | Approved (two-policy) |
 | D4 | **Onboard agents now vs later?** | Later — first we prove the human path |
 
 ---

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.gogetta.coreprt.cloudflared</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/cloudflared</string>
+    <string>tunnel</string>
+    <string>--config</string>
+    <string>/Users/gogetta/Documents/projects/CorePrt/CorePrt-cloudflare/tunnel.yml</string>
+    <string>run</string>
+    <string>coreprt</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/gogetta/Library/Logs/cloudflared-coreprt.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gogetta/Library/Logs/cloudflared-coreprt.err.log</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/gogetta</string>
+</dict>
+<!--
+  Host-specific reference plist for the gogetta@Mac-mini-van-Darren host.
+  The hard-coded paths under /Users/gogetta and the absolute cloudflared
+  binary path make this plist a single-host reference, not a portable
+  template. To reuse it on a different host or checkout, install via
+  a substitution step (e.g. a Makefile or sed pass that rewrites the
+  four paths) before running `launchctl bootstrap gui/$(id -u)
+  ~/Library/LaunchAgents/com.gogetta.coreprt.cloudflared.plist`.
+-->
+</plist>
