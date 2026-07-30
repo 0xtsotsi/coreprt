@@ -1,0 +1,20 @@
+# Caddyfile for CorePrt — placeholder, intentionally minimal.
+#
+# This file is only mounted when BUZZ_COMPOSE_TLS=true. CorePrt's
+# default single-host dev launch uses cloudflared at the edge instead
+# of Caddy, so this file is not exercised on the loopback. It exists
+# so the compose.caddy.yml mount target resolves and the stack can
+# start if the operator ever flips BUZZ_COMPOSE_TLS=true.
+#
+# For a real public deployment behind Caddy, replace the site address
+# below with the real FQDN, point its DNS at this host, and let Caddy
+# issue the cert via ACME. Then reverse-proxy to the relay on
+# port 3000 inside the buzz-net network and keep httpHostHeader in
+# tunnel.yml / relay env in sync with the chosen host.
+#
+# Do not enable TLS in front of Caddy AND cloudflared at the same
+# time — pick one edge.
+
+https://{$BUZZ_DOMAIN:coreprt.webrnds.com} {
+    reverse_proxy relay:3000
+}

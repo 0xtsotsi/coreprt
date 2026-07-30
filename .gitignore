@@ -7,6 +7,10 @@ CorePrt-deploy/cert.pem
 CorePrt-cloudflare/creds.json
 CorePrt-cloudflare/cert.pem
 CorePrt-cloudflare/<TUNNEL_ID>*.json
+# The tracked LaunchAgent reference is
+# `CorePrt-cloudflare/com.gogetta.coreprt.cloudflared.plist`. Its deployed
+# copy lives in `~/Library/LaunchAgents/`; logs and credentials remain
+# host-local and must not be committed.
 
 # Local backups, dated snapshots, logs — personal artifacts
 CorePrt-*-backup-*.txt
@@ -23,6 +27,17 @@ CorePrt-relay/
 
 # Bundle backups — stored locally only
 CorePrt-bundles/
+
+# Agent-local notes — never commit operator context
+/CLAUDE.md
+/.gg/
+
+# Host-local CorePrt secrets — Cloudflare Access service tokens, MCP
+# bridge credentials, etc. Live outside the repo at
+# ~/.config/coreprt/, never inside it. The MCP bridge should
+# `source ~/.config/coreprt/buzz-mcp.env` (or read it directly) at
+# startup. This rule is a no-op (those paths are outside the repo)
+# but documents intent and guards against future accidental copies.
 
 # macOS / editor noise
 .DS_Store

@@ -12,8 +12,17 @@
 #   brew services start cloudflared
 #   # the daemon reads /opt/homebrew/etc/cloudflared/config.yml — symlink to this file.
 tunnel: coreprt
-credentials-file: /Users/gogetta/.cloudflared/<TUNNEL_ID>.json
-protocol: auto
+credentials-file: /Users/gogetta/.cloudflared/c40f4029-2ba3-4182-b1c4-b9cab95c305e.json
+# the credentials-file above points to the existing tunnel
+# c40f4029-2ba3-4182-b1c4-b9cab95c305e (created previously and
+# bound to coreprt.webrnds.com). The file is host-local (~/.cloudflared/);
+# do not commit it. To bind a fresh tunnel on a new host, run
+# `cloudflared tunnel create coreprt`, copy the new credentials JSON
+# to this path, and then `cloudflared tunnel route dns coreprt coreprt.webrnds.com`.
+protocol: http2
+# forced http2 because WARP's split-tunnel + local firewall blocks outbound UDP/7844 (QUIC).
+# precheck of 2026-07-30 confirmed region1 TCP/7844 PASS while QUIC + region2 TCP/7844 FAIL.
+# revert to `auto` only after coreprt.webrnds.com bypasses WARP (or WARP is removed).
 
 ingress:
   # WebSocket path also goes through HTTPS — cloudflared re-routes by Host.
