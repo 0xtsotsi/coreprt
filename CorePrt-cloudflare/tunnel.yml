@@ -20,9 +20,21 @@ credentials-file: /Users/gogetta/.cloudflared/c40f4029-2ba3-4182-b1c4-b9cab95c30
 # `cloudflared tunnel create coreprt`, copy the new credentials JSON
 # to this path, and then `cloudflared tunnel route dns coreprt coreprt.webrnds.com`.
 protocol: http2
-# forced http2 because WARP's split-tunnel + local firewall blocks outbound UDP/7844 (QUIC).
-# precheck of 2026-07-30 confirmed region1 TCP/7844 PASS while QUIC + region2 TCP/7844 FAIL.
-# revert to `auto` only after coreprt.webrnds.com bypasses WARP (or WARP is removed).
+# forced http2 because WARP's split-tunnel blocks the QUIC handshake on
+# UDP/7844 even though UDP/7844 reachability succeeds for bare packets.
+# precheck on 2026-07-30 confirmed UDP/7844 reachability PASS across the
+# full edge IP set, but every QUIC handshake times out at 11s
+# ("handshake did not complete in time") with `protocol: auto`.
+# Bare-UDP works because WARP's UDP filter is path-aware; the QUIC
+# ClientHello is filtered. The split-tunnel bypass is partial: it
+# routes traffic around WARP's DNS resolver and IPv6 prefix, but the
+# outgoing UDP socket still hits WARP's egress firewall on the QUIC
+# handshake bytes.
+#
+# TODO: explore `cloudflared tunnel --edge-ip-version 4` to force IPv4
+# only (which may not be on WARP's filter list at all), or upgrade
+# cloudflared to >= 2026.7.3 which has a known handshake resilience
+# improvement (the current binary is 2026.7.1).
 
 ingress:
   # WebSocket path also goes through HTTPS — cloudflared re-routes by Host.
