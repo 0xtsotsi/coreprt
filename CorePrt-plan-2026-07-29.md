@@ -98,8 +98,14 @@ cloudflared tunnel --config ~/Documents/projects/CorePrt/CorePrt-cloudflare/tunn
 
 ### B3 — make it persistent (AGENT, after B2 verifies)
 
+**⚠️ The B3 instructions below are WRONG for this Mac.** Brew owns
+`~/Library/LaunchAgents/homebrew.mxcl.cloudflared.plist` and re-stamps it from
+the formula on every `brew services restart`, undoing any edits. The launch
+plan needs a hand-written LaunchAgent under a non-brew label. See
+**§3.1 B3 gotchas** below for the actual recipe.
+
 ```bash
-# (AGENT)
+# (AGENT — original plan, do NOT use)
 sudo mkdir -p /opt/homebrew/etc/cloudflared
 sudo ln -sf /Users/gogetta/Documents/projects/CorePrt/CorePrt-cloudflare/tunnel.yml \
             /opt/homebrew/etc/cloudflared/config.yml
@@ -114,7 +120,161 @@ Edit `coreprt.webrnds.com` CNAME in CF DNS, toggle Proxy → **Proxied**.
 
 **B4 verify** (YOU): `dig +short coreprt.webrnds.com` → `104.x` or `172.x`. `curl -sSI https://coreprt.webrnds.com/_liveness` → `HTTP/2 200`, `cf-ray:` present.
 
----
+## 3.1 — B3 gotchas (learned the hard way, 2026-07-31)
+
+Three footguns hit during the actual launch. All future CorePrt
+re-deployments should follow the corrected path below.
+
+### 3.1.1 — Brew owns `homebrew.mxcl.cloudflared.plist`
+
+Brew's source-of-truth plist lives at
+`/opt/homebrew/Cellar/cloudflared/<ver>/homebrew.mxcl.cloudflared.plist`.
+Every `brew services restart cloudflared` (and `start` / `stop`) **copies
+that file over `~/Library/LaunchAgents/homebrew.mxcl.cloudflared.plist`**
+without merging user edits. Edits to the brew plist last exactly one
+restart cycle, sometimes zero.
+
+**Correct recipe (used on 2026-07-31):**
+
+```bash
+# 1. Stash the repo's tunnel.yml in brew's config dir (cosmetic, optional)
+mkdir -p /opt/homebrew/etc/cloudflared
+ln -sf ~/Documents/projects/CorePrt/CorePrt-cloudflare/tunnel.yml \
+       /opt/homebrew/etc/cloudflared/config.yml
+
+# 2. Hand-write a NEW LaunchAgent under a non-brew label
+cat > ~/Library/LaunchAgents/com.gogetta.cloudflared-coreprt.plist <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.gogetta.cloudflared-coreprt</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/cloudflared</string>
+    <string>tunnel</string>
+    <string>--config</string>
+    <string>/Users/gogetta/Documents/projects/CorePrt/CorePrt-cloudflare/tunnel.yml</string>
+    <string>run</string>
+    <string>coreprt</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key><false/>
+    <key>Crashed</key><true/>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/gogetta/.cloudflared/coreprt-tunnel.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gogetta/.cloudflared/coreprt-tunnel.err</string>
+</dict>
+</plist>
+PLIST
+
+# 3. Note: launchd IGNORES the StandardErrorPath in this plist and writes
+#    to ~/Library/Logs/cloudflared-coreprt.err.log instead. This is normal
+#    launchd behavior when the label matches its auto-generated log path.
+#    ~/.cloudflared/coreprt-tunnel.err stays empty — that's expected.
+
+# 4. Load it (the `-w` flag persists across reboots)
+launchctl load -w ~/Library/LaunchAgents/com.gogetta.cloudflared-coreprt.plist
+
+# 5. Verify
+launchctl print gui/$(id -u)/com.gogetta.cloudflared-coreprt | grep -E 'state|last exit code'
+#   Expected: state = running, last exit code = (never exited)
+ps -p $(pgrep -f 'cloudflared.*tunnel.yml.*run coreprt') -o command
+#   Expected: /opt/homebrew/bin/cloudflared tunnel --config ... run coreprt
+
+# 6. The broken brew plist can stay — `brew services list` will keep saying
+#    `cloudflared error 1`. Stop it cleanly if it bugs you:
+#    brew services stop cloudflared
+#    (Drops the launchd registration for the brew plist; does NOT affect
+#     our hand-written LaunchAgent.)
+```
+
+This recipe mirrors the existing `com.gogetta.cloudflared-gogett`
+LaunchAgent pattern, which is what's been running the gogett tunnel since
+2026-07-10. The new label is `com.gogetta.cloudflared-coreprt` (note the
+**dashed** suffix, matching gogett's convention).
+
+### 3.1.2 — `cloudflared tunnel route dns` can cross-wire to the wrong tunnel
+
+Symptom: `cloudflared tunnel route dns coreprt coreprt.webrnds.com`
+silently creates a CF DNS row whose **Target** field is bound to a
+different tunnel than expected (in our case, the `gogett` tunnel). When
+this happens, requests to `coreprt.webrnds.com` flow through CF edge into
+the *gogett* tunnel, which has no ingress rule for the coreprt hostname,
+falls through to its catch-all `http_status:404`, and returns 404 even
+though both the coreprt tunnel and the relay are healthy.
+
+**Diagnostic** (when in doubt):
+
+```bash
+# In CF dashboard: Websites → webrnds.com → DNS → Records
+# Look for any row where:
+#   Type  = "Tunnel" (not "CNAME")
+#   Name  = coreprt
+#   Target = <UUID>.cfargotunnel.com
+# Confirm the UUID matches the one printed by `cloudflared tunnel info coreprt`.
+```
+
+**Fix**: delete the wrong-bound Tunnel record in the dashboard, then
+re-run `cloudflared tunnel route dns coreprt coreprt.webrnds.com`.
+Verify with `cloudflared tunnel info coreprt` and the dashboard.
+
+This bit us on 2026-07-29 and again indirectly on 2026-07-31 (after the
+malformed apex records were cleaned up, the cross-wired Tunnel row was
+finally editable and got fixed). Future CorePrt launches should add a
+post-`route-dns` sanity check to the plan.
+
+### 3.1.3 — `tunnel.yml` edits don't propagate to a running process
+
+Cloudflared reads `tunnel.yml` once at startup. Edits to the file on
+disk have no effect until the process restarts. Symptom: you change
+`service: http://127.0.0.1:3300` → `:3301`, restart the relay, see
+errors in the tunnel log like `originService=http://127.0.0.1:3300`,
+waste 30 minutes wondering if your edit landed.
+
+**Restart the tunnel cleanly:**
+
+```bash
+# Either:
+kill -TERM $(pgrep -f 'cloudflared.*tunnel.yml.*run coreprt')
+#   (launchd respawns via KeepAlive.Crashed in ~5 s)
+
+# Or:
+launchctl kickstart -k gui/$(id -u)/com.gogetta.cloudflared-coreprt
+```
+
+Then verify in the *new* process's log that the new port appears (read
+`tail -50 ~/Library/Logs/cloudflared-coreprt.err.log`, not the stale
+`~/.cloudflared/coreprt-tunnel.err` which stays empty).
+
+## 3.2 — Credentials in chat: never
+
+During the 2026-07-31 launch, two near-misses occurred:
+
+1. **Cloudflare API token** (`cfat_…`) pasted in chat context. Revoked
+   immediately.
+2. **R2 access key + secret** pasted in chat context. Rotated
+   immediately.
+
+These were caught before they caused damage, but **this must never
+happen again.** Any secret, token, or credential belonging to CorePrt,
+Cloudflare, R2, S3, GitHub, or any third party MUST go to:
+
+- `~/Documents/projects/CorePrt/CorePrt-secrets-backup-*.txt` (mode 600,
+  gitignored), or
+- Bitwarden / 1Password, or
+- A password manager
+
+The `.gitignore` patterns at lines 3-15 already exclude the right
+artifacts. Don't paste secrets into chat for any reason, including
+"just for one quick copy-paste." Once it's in chat history, it's
+potentially in chat backups, logs, model training, or screenshots.
 
 ## 4. CF Access posture — what CF can evaluate, what I'd propose
 

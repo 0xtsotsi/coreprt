@@ -40,6 +40,8 @@ ingress:
   # WebSocket path also goes through HTTPS — cloudflared re-routes by Host.
   - hostname: coreprt.webrnds.com
     service: http://127.0.0.1:3300
+    # Note: 127.0.0.1:3300 enters the colima-managed Docker VM via its SSH control socket;
+    # this is the relay's published port.
     originRequest:
       connectTimeout: 10s
       noTLSVerify: false
