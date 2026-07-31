@@ -212,7 +212,7 @@ and add each as `--role member` (not admin).
   `RELAY_OWNER_PUBKEY`, and keep `BUZZ_DOMAIN=coreprt.webrnds.com`. The relay expects the
   hex encoding shown by `buzz-admin generate-key`; `npub1…` and hex are not interchangeable
   and pasting `npub1…` will leave owner authorization broken.
-- **Cloudflare Access policy uses two Allow rules** (`owner-trusted-mac` + `owner-anywhere`) per [`docs/access-policy.md`](docs/access-policy.md). The original third policy `service-token-buzz-mcp` was retired — service tokens were deleted and the policy is gone; see `docs/2026-07-30-final-policy-and-warp-pending.md`. I will *not* modify these without your explicit say-so. A misconfigured public relay is a discoverable system.
+- **Cloudflare Access policy uses three Allow rules** (`owner-trusted-mac` + `owner-anywhere` + `service-token-buzz-mcp`) per [`docs/access-policy.md`](docs/access-policy.md). The third policy was retired 2026-07-30 alongside the service tokens, then re-created 2026-07-31 to admit the `@buzz/mcp` v0.1.0 rollout (https://github.com/0xtsotsi/buzz-mcp) — see `CHANGELOG.md` `[Unreleased]`. I will *not* modify these without your explicit say-so. A misconfigured public relay is a discoverable system.
 - **Cloudflare DNS for `webrnds.com` isn't currently in `~/.cloudflared`** — I haven't probed
   for a stored certificate. The dashboard steps above assume you (a) own the zone in CF and
   (b) have API credentials available. If neither is true yet, that's the next blocker to
@@ -240,7 +240,7 @@ and add each as `--role member` (not admin).
 | - | -------- | ---------------- |
 | D1 | **Owner keypair** — generate now (give you a `nsec1…` to back up) or wait? | Generate now |
 | D2 | **`coreprt.webrnds.com` DNS zone** — does Cloudflare already host `webrnds.com`? | Assume yes |
-| D3 | **Cloudflare Access** — two-policy posture (trusted-mac + anywhere), see [`docs/access-policy.md`](docs/access-policy.md). The original third policy `service-token-buzz-mcp` was retired; see `docs/2026-07-30-final-policy-and-warp-pending.md`. | Approved (two-policy) |
+| D3 | **Cloudflare Access** — three-policy posture (trusted-mac + anywhere + service-token-buzz-mcp), see [`docs/access-policy.md`](docs/access-policy.md). `@buzz/mcp` shipped at v0.1.0 (https://github.com/0xtsotsi/buzz-mcp); service token `buzz-mcp-prod` re-created 2026-07-31. | Approved (three-policy) |
 | D4 | **Onboard agents now vs later?** | Later — first we prove the human path |
 
 ---
