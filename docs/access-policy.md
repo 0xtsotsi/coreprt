@@ -73,9 +73,15 @@ Tradeoff:
 **Purpose:** headless callers — agents, MCP bridge, future automation.
 **Session:** none (Service Tokens are long-lived credentials).
 
-| Rule type | Selector | Value |
+| Action | Selector | Value |
 | --- | --- | --- |
+| **Service Auth** | — | (any Service Token in this app) |
 | Include | Service Token | `buzz-mcp-prod` |
+
+> **Note:** Cloudflare Access requires Service-Token policies to use the
+> **Service Auth** action, not **Allow**. Allow policies will continue to
+> prompt for user-based auth and the token will not be honored. Verified
+> against the dashboard 2026-07-31.
 
 Service Token details:
 - Generated on 2026-07-29; re-created 2026-07-31 after the 2026-07-30 retirement.
@@ -108,7 +114,7 @@ These were considered and dropped for v1:
 
 - Adding a second human user → update `Include → Emails` in **all three policies** to add the new identity.
 - Adding a second agent → create a new Service Token, name it descriptively, store credentials in that agent host's secret store.
-- Adding `@buzz/mcp` to a fresh Mac → create a fresh Service Token, place creds in the host's secret store, and add the buzz block to `~/.gg/mcp.json`. See https://github.com/0xtsotsi/buzz-mcp docs/quickstart.md.
+- Adding `@buzz/mcp` to a fresh Mac → create a fresh Service Token, place creds in the host's secret store, and add the buzz block to `~/.gg/mcp.json`. See [https://github.com/0xtsotsi/buzz-mcp/blob/main/docs/quickstart.md](https://github.com/0xtsotsi/buzz-mcp/blob/main/docs/quickstart.md).
 - Compromised Service Token → revoke in CF dashboard; rotate Nostr keypair for the affected agent (`docker exec -it coreprt-relay-1 /usr/local/bin/buzz-admin generate-key`, `run.sh add-member <new-key>`, `run.sh remove-member <old-key>`).
 - Policy drift detection: when editing any policy in the dashboard, copy the resulting JSON definition back into this file as a fenced code block under "Live state" so version control catches drift.
 

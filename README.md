@@ -120,7 +120,7 @@ In Cloudflare for the `webrnds.com` zone:
    - **Name:** `CorePrt`
    - **Domain:** `coreprt.webrnds.com`
    - **Policies:** three Allow rules per [`docs/access-policy.md`](docs/access-policy.md) —
-     `owner-trusted-mac` (24h), `owner-anywhere` (1h, US-only), `service-token-buzz-mcp` (no session).
+     `owner-trusted-mac` (24h), `owner-anywhere` (1h, US-only), `service-token-buzz-mcp` (no session, Service Auth action).
    - This gates both `https://coreprt.webrnds.com` and the WebSocket path
      `wss://coreprt.webrnds.com`.
    - **Important:** Access policies require the orange-cloud (proxied) state. Order matters.
