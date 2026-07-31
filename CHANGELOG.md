@@ -1,6 +1,16 @@
 # Changelog
 
 ## [Unreleased]
+
+## 2026-07-31 — @buzz/mcp rollout (v0.1.0)
+
+- Six `gogetta/buzz-mcp` PRs merged into `https://github.com/0xtsotsi/buzz-mcp` (default branch `main`) (commits `5b78eb9` → `6e9526e`). 16 MCP tools, 9 event builders, BIP-340 signer, NIP-98 HTTP, NIP-42 WS, 93 tests, operator docs.
+- Re-create the `service-token-buzz-mcp` policy in Cloudflare Access after the 2026-07-30 retirement. New service token `buzz-mcp-prod` is live; client_id + client_secret in `~/.config/coreprt/buzz-mcp.env` (chmod 600).
+- Per-agent Nostr keypair minting is operator-only (CLAUDE.md safety rail: `buzz-admin generate-key` redaction). Agent-side onboarding cannot run end-to-end until the operator pastes `BUZZ_PRIVATE_KEY` into the host env file. The CorePrt docs are now in place for that step.
+- Correct the spec's `gogetta/buzz-mcp` namespace to `0xtsotsi/buzz-mcp` across all CorePrt docs. The npm package name remains `@buzz/mcp` (unaffected).
+- `scripts/probe-edge.sh` is the operational tool that verifies the CF Access edge admits the service token. Keep it.
+- Operator playbook: `~/.gg/mcp.json` block for the `buzz` server is in `https://github.com/0xtsotsi/buzz-mcp/blob/main/docs/mcp-config.example.json` (Track A for dev, Track B for prod). The block is gated on the operator's per-agent `BUZZ_PRIVATE_KEY`.
+
 ## 2026-07-30 — CorePrt Access and tunnel bring-up
 
 - Pin cloudflared to HTTP/2 while WARP blocks QUIC on UDP/7844 (`CorePrt-cloudflare/tunnel.yml`).

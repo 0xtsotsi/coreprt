@@ -73,14 +73,22 @@ Tradeoff:
 **Purpose:** headless callers — agents, MCP bridge, future automation.
 **Session:** none (Service Tokens are long-lived credentials).
 
-| Rule type | Selector | Value |
+| Action | Selector | Value |
 | --- | --- | --- |
+| **Service Auth** | — | (any Service Token in this app) |
 | Include | Service Token | `buzz-mcp-prod` |
 
+> **Note:** Cloudflare Access requires Service-Token policies to use the
+> **Service Auth** action, not **Allow**. Allow policies will continue to
+> prompt for user-based auth and the token will not be honored. Verified
+> against the dashboard 2026-07-31.
+
 Service Token details:
-- Generated once in CF dashboard (Access → Service Auth → Create).
+- Generated on 2026-07-29; re-created 2026-07-31 after the 2026-07-30 retirement.
 - Stored in agent host environment (never in repo, never in .env committed).
 - Revocable independently of any human session.
+
+**2026-07-31 re-creation note.** The original `buzz-mcp-prod` service token was retired 2026-07-30 as part of the access-policy simplification. A new token with the same name was created from a clean dashboard session on 2026-07-31. The current `client_id` is `b6542dbe957486d355002cba3fb75b00.access` (the secret is held in the operator's `~/.config/coreprt/buzz-mcp.env`, chmod 600, never in this repo). Edge-probe `bash scripts/probe-edge.sh` returns 200 on `/`, `/info`, `/_liveness`, `/_readiness`; the 401 on `POST /events`/`/query`/`/count` is the relay layer (NIP-98 / NIP-42) and is the expected posture — the edge is admitting the request and the relay is asking for Nostr auth.
 
 Why required: `BUZZ_REQUIRE_AUTH_TOKEN=true` and
 `BUZZ_REQUIRE_RELAY_MEMBERSHIP=true` mean every request needs a
@@ -106,6 +114,7 @@ These were considered and dropped for v1:
 
 - Adding a second human user → update `Include → Emails` in **all three policies** to add the new identity.
 - Adding a second agent → create a new Service Token, name it descriptively, store credentials in that agent host's secret store.
+- Adding `@buzz/mcp` to a fresh Mac → create a fresh Service Token, place creds in the host's secret store, and add the buzz block to `~/.gg/mcp.json`. See [https://github.com/0xtsotsi/buzz-mcp/blob/main/docs/quickstart.md](https://github.com/0xtsotsi/buzz-mcp/blob/main/docs/quickstart.md).
 - Compromised Service Token → revoke in CF dashboard; rotate Nostr keypair for the affected agent (`docker exec -it coreprt-relay-1 /usr/local/bin/buzz-admin generate-key`, `run.sh add-member <new-key>`, `run.sh remove-member <old-key>`).
 - Policy drift detection: when editing any policy in the dashboard, copy the resulting JSON definition back into this file as a fenced code block under "Live state" so version control catches drift.
 
