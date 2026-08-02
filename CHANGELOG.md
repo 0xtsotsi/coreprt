@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## 2026-08-02 — MCP round-trip diagnostic + dev launcher
+
+- `docs/2026-08-02-mcp-diagnostic.md`: full trace of the five stacked bugs that caused `mcp__buzz__buzz_post_message` to return `invalid_format` on every call during a session. **Production was not polluted** — every call died at `createServer()` before signing or contacting the relay. The fix lives in `~/.gg/mcp.json` (operator-managed), not in any repo. CLAUDE.md updated with the "MCP error almost never a parameter bug" rail.
+- `scripts/start-buzz-desktop-local.sh`: dev-only launcher that sets `BUZZ_RELAY_URL=ws://127.0.0.1:3300` and clears stale `defaults` keys. Annotated in CLAUDE.md as not-for-production; the main instance remains `wss://coreprt.webrnds.com`.
+- Removed stray `scripts/patch-test-name.py` and `scripts/pr-{7,8,9,10}-body.md` — they belong in `~/Documents/projects/buzz-mcp/`, not in this ops repo.
+
 ## 2026-07-31 — @buzz/mcp rollout (v0.1.0)
 
 - Six `gogetta/buzz-mcp` PRs merged into `https://github.com/0xtsotsi/buzz-mcp` (default branch `main`) (commits `5b78eb9` → `6e9526e`). 16 MCP tools, 9 event builders, BIP-340 signer, NIP-98 HTTP, NIP-42 WS, 93 tests, operator docs.
