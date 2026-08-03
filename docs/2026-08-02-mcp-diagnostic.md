@@ -21,12 +21,10 @@ session — every call died at `createServer()` before reaching
 | 2 | `/tmp/dotenv-run` was missing, so `npx --prefix /tmp/dotenv-run dotenv-cli` resolves nothing | Filesystem | `mkdir -p /tmp/dotenv-run && npm install --prefix /tmp/dotenv-run dotenv-cli` (now done) |
 | 3 | `BUZZ_RELAY_URL` is **not** in `~/.config/coreprt/buzz-mcp.env`. The MCP config's `env.BUZZ_RELAY_URL` is fine, but if anything in the env-file ever overrides it, the relay URL falls back to `DEFAULT_RELAY_URL` (the local default in `buzz-mcp/dist/index.js`) | `~/.config/coreprt/buzz-mcp.env` | Either add `BUZZ_RELAY_URL=https://coreprt.webrnds.com` to the env file, OR trust the mcp.json `env` block (it should win because dotenv-cli does not override by default) |
 | 4 | `["subject", …]` wire-shape bug in `buildMessage` and `buildReaction` (relay expects `["h", <uuid>]`) | `~/Documents/projects/buzz-mcp/src/relay/event-builder.ts:187,230` | One-line rename. Will surface as `400 invalid: channel-scoped events must include an h tag` once bugs 1–3 are fixed |
-| 5 | Operator pubkey `507c4dd1…` is not on the relay's community allowlist | `coreprt-relay-1` members table | `docker exec coreprt-relay-1 buzz-admin add-member <hex> --role member` |
+| 5 | MCP host is not enrolled in Cloudflare WARP. Without WARP, neither the operator nor the MCP can reach the relay (the only working headless auth path on this account is WARP-required include; see `docs/access-policy.md` Policy A1 and `docs/2026-08-03-access-recreate.md`). | MCP host machine | Install Cloudflare One Client, enroll with the team enrollment token, set mode to WARP, add `coreprt.webrnds.com` to split-tunnel Include, connect. |
 
-Bugs 1–3 are configuration bugs. Bug 4 is a known source-code defect
-(documented in the wire-shape analysis on 2026-08-01; not fixed yet). Bug 5 is
-operator-side onboarding (CLAUDE.md rail: agent onboarding is gated on the
-human path being live).
+Bugs 1–3 are configuration bugs. Bug 4 is a known source-code defect (documented in the wire-shape analysis on 2026-08-01; not fixed yet). Bug 5 is operator-side onboarding (CLAUDE.md rail: agent onboarding is gated on the human path being live).
+
 
 ## Verification trace from the diagnostic
 
@@ -100,3 +98,18 @@ relay container (`coreprt-relay-1`) and the cloudflared LaunchAgent
 (`com.gogetta.cloudflared-coreprt`) are untouched. Only state changed is
 local to this Mac: `/tmp/dotenv-run/` now exists with `dotenv-cli@latest`
 installed, which is harmless if the operator removes it.
+---
+
+## Update 2026-08-03
+
+Bug 5 has changed. The original "operator not on relay allowlist" bug is still valid (the MCP pubkey still needs to be added to the community allowlist), but the **edge-layer blocker is now WARP enrollment**, not service-token configuration. With the service-token path retired on this account (`docs/2026-08-03-access-recreate.md` and `docs/2026-07-30-service-token-api-quirks.md`), the `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` env vars in `~/.config/coreprt/buzz-mcp.env` are no longer needed — the MCP server can keep them in the env file (harmless) but should remove them in a follow-up cleanup once the WARP path is confirmed working.
+
+The current repair plan (in dependency order) is:
+
+1. **Enroll the MCP host in Cloudflare WARP** (the new blocker; the operator's own Mac also needs this). See `docs/2026-07-30-operator-runbook.md` Steps 1 and 4.
+2. Patch `~/.gg/mcp.json` — add `-e` flag (operator-only; not in this repo).
+3. Confirm `/tmp/dotenv-run` exists with `dotenv-cli` installed.
+4. Optionally add `BUZZ_RELAY_URL=https://coreprt.webrnds.com` to the env file for redundancy.
+5. Patch `event-builder.ts` wire shape (`["subject", …]` → `["h", <uuid>]`).
+6. Operator runs `docker exec coreprt-relay-1 buzz-admin add-member <mcp-hex>`.
+7. After 1–6, the `mcp__buzz__buzz_post_message` round-trip is real and observable.

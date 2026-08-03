@@ -1,4 +1,10 @@
-# CorePrt — Final policy layout · 2026-07-30
+# CorePrt — Final policy layout · 2026-07-30 **SUPERSEDED 2026-08-03**
+
+> **This document is no longer the live state.** The Access app was recreated on 2026-08-03 with a new app id (`974e7f0c-…` / aud `55c81dfc…`), new policy layout (3 policies including a new `mcp-warp-required`), and a different posture set (`owner-trusted-mac` now requires 4 posture checks: WARP + OS + Firewall + DiskEnc). See `docs/access-policy.md` for the current live state and `docs/2026-08-03-access-recreate.md` for the recreate run log. The remainder of this file is the historical 2026-07-30 plan; preserved for the audit trail.
+
+<details>
+
+# CorePrt — Final policy layout · 2026-07-30 [historical]
 
 **Operator decided:** keep Policy A (WARP + posture) and Policy B (email only). **Delete Policy C** (service-token-buzz-mcp). Service tokens are unreachable at the edge on this account.
 
@@ -44,3 +50,8 @@ All service tokens deleted (count: 0). The service-token API endpoint at `/accou
 - `docs/2026-07-30-end-of-session.md` — no-change-round note
 - `docs/2026-07-30-service-token-api-quirks.md` — underscore vs hyphen namespace, edge rejection pattern
 - `docs/2026-07-30-final-policy-and-warp-pending.md` — this file
+</details>
+
+## Update 2026-08-03
+
+The WARP-required include was implemented as Policy A1 (`mcp-warp-required`) on the new app `974e7f0c-…`. WARP is now **MANDATORY** for both the operator's daily-driver Mac and the MCP host — the operator and agent paths converge on the same device-posture gate. See `docs/access-policy.md` and `docs/2026-08-03-access-recreate.md` for the current state.

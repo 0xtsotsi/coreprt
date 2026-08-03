@@ -60,3 +60,22 @@ The remaining work is operator-side: create a fresh service token bound
 to `CorePrt (c3f1f0da-…)`, store both values locally in
 `~/.config/coreprt/buzz-mcp.env` with mode 600, and report only the
 token ID and verification result. Never paste the secret into chat.
+
+---
+
+## Update 2026-08-03 — service-token path is permanently retired on this account
+
+A recreate test on 2026-08-03 (`docs/2026-08-03-access-recreate.md`) **refuted the hypothesis that a fresh app + fresh token would unstick the edge rejection**. Steps taken:
+
+1. Deleted the old Access app `c3f1f0da-…` (with its 3 policies and the old service token `80ae9bce-…`).
+2. Created a new app `974e7f0c-…` from scratch.
+3. Re-attached a fresh 3-policy layout (the service-token policy is at prec 1).
+4. Minted a new service token via the API (`8558f382-…`, client_id `4d9539a3…access`, 64-hex secret).
+5. Pinned the new policy's `service_token` include to the new token id.
+6. Probed the edge with `CF-Access-Client-Id` + `CF-Access-Client-Secret` headers — **HTTP 403**, same as before.
+
+The edge rejection is **account-level, not app-level**. The 2026-07-31 "re-creation note" in earlier docs that claimed the token was working is **factually wrong** — the authed 200s at the time were likely from a cached WARP session on the operator's machine, not from the service token itself.
+
+**The service-token path is permanently retired on this account.** The replacement is WARP-required include on the MCP host (Policy A1 in `docs/access-policy.md`). All service tokens are deleted (count: 0). The new Access app has no service-token policy attached.
+
+If Cloudflare support ever fixes the edge-rejection issue on this account, the recreate script (`scripts/recreate-access-app.py`) can be re-run to add a service-token policy back. Until then, do not retry.

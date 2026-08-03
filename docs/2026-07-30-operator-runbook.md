@@ -1,13 +1,16 @@
-# CorePrt — Operator Runbook · 2026-07-30
+# CorePrt — Operator Runbook · 2026-07-30 (updated 2026-08-03)
 
-**Goal:** take CorePrt from "Access policies live" to "operator logged in via WARP+posture, no OTP prompt" and "MCP bridge authenticated via service token".
+**Goal:** take CorePrt from "Access policies live" to "operator logged in via WARP+posture, no OTP prompt" and "MCP host authenticated via WARP".
 
-**Current state (verified via API):**
-- Access app `CorePrt` (id `c3f1f0da-94e8-4e8a-aef4-6d348dc6899d`, aud `75f368ec604e03651d9c0590894c2e12be90c91b70be064cacbdb144b292796e`)
-- 2 policies attached (canonical live state: see `docs/2026-07-30-final-policy-and-warp-pending.md`)
-  - `owner-trusted-mac` (prec 1): `email=gogetta` + `require: device_posture` for all 4 posture UIDs (WARP, OS version, Firewall, Disk encryption)
-  - `owner-anywhere` (prec 2): `email=gogetta` only — fallback when WARP not installed
-- Policy C (`service-token-buzz-mcp`) was retired; all service tokens were deleted.
+> **2026-08-03 update.** WARP enrollment is now **MANDATORY**, not optional. Service tokens are structurally broken on this Cloudflare account and were retired; the only working headless auth path is WARP-required include (Policy A1). The Access app was also recreated as `974e7f0c-8027-4183-a66d-394847b4ddd9` (aud `55c81dfc…`); the old `c3f1f0da-…` / `75f368ec…` was deleted. See `docs/2026-08-03-access-recreate.md` for the recreate run log.
+
+**Current state (verified via API on 2026-08-03):**
+- Access app `CorePrt` (id `974e7f0c-8027-4183-a66d-394847b4ddd9`, aud `55c81dfc5272fb5fdb74636fbb4803912328d317f15b5c2700be8a99ddc44329`)
+- 3 policies attached (canonical live state: see `docs/access-policy.md`)
+  - `mcp-warp-required` (prec 1): `email=schreuderdarren@gmail.com` + `require: device_posture(WARP integration)`
+  - `owner-trusted-mac` (prec 2): `email=schreuderdarren@gmail.com` + `require: device_posture` for all 4 posture UIDs (WARP, OS version, Firewall, Disk encryption)
+  - `owner-anywhere` (prec 3): `email=schreuderdarren@gmail.com` + `require: geo(NL)` + 6h session
+- Service tokens: **0** (all deleted 2026-08-03; service-token path retired on this account — see `docs/2026-07-30-service-token-api-quirks.md` and the refutation in `docs/2026-08-03-access-recreate.md`)
 - 5 posture integrations live (Gateway, WARP, OS version, Firewall, Disk encryption)
 - Tunnel healthy, 4 connectors; relay + postgres + redis + minio healthy running
 - API can list devices: **`count=0`** — no devices have reported yet (operator hasn't enrolled WARP)
@@ -15,7 +18,9 @@
 
 ---
 
-## Step 1 — Enroll WARP on the operator's Mac
+## Step 1 — Enroll WARP on the operator's Mac **MANDATORY**
+
+Without WARP enrolled, neither the operator nor any MCP host can reach the relay (Policy A1/A require the WARP device-posture check; Policy B's 6h session is the only path without WARP, and it requires NL geo). The operator's daily-driver path is Policy A (WARP + 3 posture checks), not Policy B.
 
 1. Open **Cloudflare One Client**: 👉 https://one.dash.cloudflare.com/?to=/:account/team/devices
 2. Click **Add a device** (or get the team enrollment token if not shown).
@@ -37,7 +42,6 @@ sudo /sbin/pfctl -s info                                    # should be: Status:
 Then check Cloudflare sees the device:
 
 ```sh
-# API call (after re-probing the API token):
 curl -sS -H "Authorization: Bearer $CF_API_TOKEN" \
   "https://api.cloudflare.com/client/v4/accounts/fb883e97a51c4525501a42a6a06b7a46/devices/registrations" \
   | python3 -m json.tool
@@ -75,13 +79,31 @@ Expected: **200** (or 200 with the relay's `ok` body). If you get **302**, the W
 If the request fails:
 1. Check WARP is in **WARP mode**, not DNS-only or off.
 2. Verify all 4 posture checks in the dashboard logs.
-3. If still 302, the operator email might not match — confirm the `email = gogetta` in the Access policy include matches the email you enrolled WARP with.
+3. If still 302, the operator email might not match — confirm the `email = schreuderdarren@gmail.com` in the Access policy include matches the email you enrolled WARP with.
 
 ---
 
-## Step 4 — (Deprecated) Service token rotation
+## Step 4 — Enroll WARP on the MCP host (MCP-side)
 
-Policy C (`service-token-buzz-mcp`) was retired; all service tokens were deleted. The dashboard rotation steps that used to live here no longer apply. If MCP auth is required, plan a WARP-only authentication path on the MCP host (see `docs/2026-07-30-final-policy-and-warp-pending.md` for the MCP plan).
+If the MCP host is the same Mac as the operator's, Step 1 already covers it. If the MCP host is a different machine (a separate Mac, a Linux box, a CI runner, etc.), do this:
+
+1. On the MCP host, install Cloudflare One Client:
+   - macOS: download from https://dash.cloudflare.com/?to=/:account/team/warp or App Store.
+   - Linux: see https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/deployment/manual-deployment/ for apt repo install.
+2. Get a team enrollment token from https://one.dash.cloudflare.com/?to=/:account/team/devices (separate token from the operator's, for per-device audit).
+3. On the MCP host, register the token:
+   ```
+   warp-cli registration token <TEAM_TOKEN>
+   ```
+4. Set the connection mode to **WARP** (not DNS-only): `warp-cli mode warp` (Linux) or via the app Settings on macOS.
+5. Connect: `warp-cli connect`.
+6. **Critical:** add `coreprt.webrnds.com` to the WARP split-tunnel **Include** list on the MCP host. Without this, WARP routes all traffic to the Cloudflare edge; with split-tunnel Include for the relay host, the MCP's TLS handshake to `coreprt.webrnds.com` carries the WARP device certificate through the tunnel that Cloudflare sees.
+   - macOS: WARP → Settings → Connection → Split Tunneling → Manage → add `coreprt.webrnds.com` → Include.
+   - Linux: split-tunnel config is via `mdm.xml` profile or the dashboard's WARP client config (see docs link above).
+7. Verify the MCP host shows up in `devices/registrations` and posture is passing for WARP.
+8. From the MCP host, the `mcp__buzz__*` tools should now reach the relay through the WARP-authenticated TLS path.
+
+> **Note for the `~/.config/coreprt/buzz-mcp.env` file.** The `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` env vars are no longer needed. The MCP server can keep them in the env file (harmless) but should remove them in a follow-up cleanup once the WARP path is confirmed working — see `docs/2026-08-02-mcp-diagnostic.md` for the env-file schema.
 
 The leaked credentials in `~/.config/coreprt/buzz-mcp.env` and in discarded local Git history should still be considered compromised — rotate any password reused elsewhere and audit MCP hosts.
 
@@ -98,7 +120,7 @@ To close this gap, add a verification step in `block/buzz` upstream that, for ev
 3. Fetches the JWKS from `https://silent-breeze-f1dc.cloudflareaccess.com/cdn-cgi/access/certs` and verifies the JWT signature against the matching key.
 4. **Algorithm pinning**: rejects tokens whose `alg` header is anything other than `RS256` (no `none`, no HS256).
 5. Confirms `iss` = `https://silent-breeze-f1dc.cloudflareaccess.com` (the team domain).
-6. Confirms `aud` = `75f368ec604e03651d9c0590894c2e12be90c91b70be064cacbdb144b292796e` (the CorePrt app audience).
+6. Confirms `aud` = `55c81dfc5272fb5fdb74636fbb4803912328d317f15b5c2700be8a99ddc44329` (the **current** CorePrt app audience — old `75f368ec…` was retired 2026-08-03).
 7. Validates the time fields: `exp` strictly in the future, `nbf` <= now (if present), and `iat` <= now. The default 5-minute skew is fine.
 8. **Fails closed**: any missing/invalid token, claim mismatch, or signature failure → 403.
 
@@ -112,6 +134,6 @@ This is upstream work. I can write the diff skeleton + a unit test plan if you w
 |---|---|
 | WARP enrollment | https://one.dash.cloudflare.com/?to=/:account/team/devices |
 | Posture logs | https://one.dash.cloudflare.com/?to=/:account/team/logs/posture |
-| Service tokens | https://one.dash.cloudflare.com/?to=/:account/:zone/settings/service-auth |
-| Access app | https://one.dash.cloudflare.com/?to=/:account/:zone/access/apps/c3f1f0da-94e8-4e8a-aef4-6d348dc6899d |
+| ~~Service tokens~~ (retired 2026-08-03) | ~~https://one.dash.cloudflare.com/?to=/:account/:zone/settings/service-auth~~ |
+| Access app | https://one.dash.cloudflare.com/?to=/:account/:zone/access/apps/974e7f0c-8027-4183-a66d-394847b4ddd9 |
 | Cloudflare One Client docs | https://developers.cloudflare.com/cloudflare-one/reusable-components/posture-checks/client-checks/ |
