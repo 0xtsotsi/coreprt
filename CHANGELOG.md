@@ -2,6 +2,56 @@
 
 ## [Unreleased]
 
+## 2026-08-04 — Writer foundation + 3 operator one-shots (digest, invite, search)
+
+Merged PRs #5 + #6 (fast-forward). Supersedes the now-closed PR #5
+(foundation) — its content is part of this release.
+
+- **`agents/_lib/writer.mjs`** (~230 LOC): the single publish/subscribe
+  surface for every agent one-shot. `runWithRelay({ nsec, relayUrl, host,
+  log }, run)` opens a WS, performs the NIP-42 AUTH handshake
+  (kinds 22242 with `["relay", "wss://<host>"]`), waits for OK on the
+  AUTH event before running the caller's body, then closes cleanly.
+  Per-feature one-shots never reimplement NIP-42, reconnect, or EOSE
+  plumbing. To remove the writer: delete the file, the one-shots that
+  import it, and the `publish|req|search|digest|invite` cases in
+  `coreprt-agent.sh`. Nothing else breaks.
+- **`coreprt-agent publish <name> --kind <k> --content <text> --tag k=v …`**
+  signs a kind in-process so the echoed id matches the published id,
+  prints `nostr:<id>` after relay OK. Exits 78 on misuse, 1 on
+  rejection, 2 on connection failure.
+- **`coreprt-agent req <name> --kind <k> [--tag k=v] [--search q] [--limit n]`**
+  prints JSONL events + a trailing `{ "eose": true, count: N }` line.
+  Full NIP-50 + REQ filter surface (kinds, #tags, since/until, authors, ids).
+- **Feature 1 — daily digest (`agents/_lib/one-shot/digest.mjs`)**:
+  `coreprt-agent digest bumble [--since <hours>]` fetches the prior
+  window of `#general`, strips the agent's own messages, asks the agent's
+  runtime (default codex-minimax / MiniMax-M3) for a ≤480-char recap,
+  publishes as kind 9 with up to 3 inline `nostr:` deep links. Scheduled
+  at 09:00 local via `CorePrt-deploy/com.gogetta.coreprt.bumble-digest.plist`
+  (`StartCalendarInterval Hour=9 Minute=0`). Removes the feature by
+  deleting the script + the plist.
+- **Feature 2 — invite-by-link (`agents/_lib/one-shot/invite.mjs`)**:
+  `coreprt-agent invite <name> --ttl 24h [--code-len 12]` mints a
+  base64url code (~72 bits of entropy), publishes a NIP-29 kind 9021
+  with NIP-40 expiration, `pbcopy`s the code, writes it to
+  `~/.config/coreprt/last-invite.txt` (mode 600).
+- **Feature 3 — searchable archive (`agents/_lib/one-shot/search.mjs`)**:
+  `coreprt-agent search <name> "<query>" --channel <uuid>` issues
+  NIP-50 search. If the relay returns 0 hits (no fast FTS index on
+  `coreprt-relay-1`), falls back to a wider REQ + client-side substring
+  filter. Verified on the deployed relay 2026-08-04: NIP-50 returned 0
+  for "coreprt"; the fallback re-fetched 3 events, filtered to 0. Output:
+  one line per match, `nostr:<id>` deep links.
+- **`coreprt-agent.sh` gains `publish|req|search|digest|invite`** as named
+  subcommands. Each sources the agent env, syncs the runtime, and `exec`s
+  Node against the matching `agents/_lib/one-shot/<name>.mjs`.
+- **No changes** to `runtime.mjs`, `nostr.mjs`, `relay-client.mjs`,
+  the daemon LaunchAgents, the relay image, or `package.json`.
+- **No kind numbers in shared code.** The writer accepts `--kind` from
+  the operator; each one-shot has the kind number it cares about as a
+  single constant in its own file. Renumbering is a 1-file edit.
+
 ## 2026-08-03 — Access app recreate + WARP-required fallback for MCP
 
 - Recreated the Cloudflare Access app from scratch: new app id `974e7f0c-8027-4183-a66d-394847b4ddd9` (aud `55c81dfc…`); old `c3f1f0da-…` / `75f368ec…` deleted.
