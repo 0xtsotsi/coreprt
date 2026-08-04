@@ -9,7 +9,7 @@
 // 1 on relay rejection, 78 on misuse, 2 on connection failure.
 
 import { runWithRelay, buildEventTemplate } from "../writer.mjs";
-import { finalizeEvent } from "../nostr.mjs";
+import { finalizeEvent, getKeypairFromHex } from "../nostr.mjs";
 
 function parseArgs(argv) {
   const args = argv.slice(2);
@@ -60,6 +60,12 @@ async function main() {
   }
 
   const log = (...args) => console.log(`[${name}] [publish]`, ...args);
+  const nsec = process.env.AGENT_NSEC;
+  if (!nsec) {
+    process.stderr.write("error: AGENT_NSEC is not set in the agent env file\n");
+    process.exit(78);
+  }
+
   const tags = flags.tags.map(parseTag);
   const template = buildEventTemplate({
     kind: flags.kind,
@@ -67,26 +73,14 @@ async function main() {
     tags,
     createdAt: flags.createdAt,
   });
+  // Sign in-process so the published event has the same id we echo to the
+  // operator. The writer's NIP-42 AUTH is a separate signed event.
+  const keypair = getKeypairFromHex(nsec);
+  const event = finalizeEvent(template, keypair.skBytes);
 
-  const nsec = process.env.AGENT_NSEC;
-  if (!nsec) {
-    process.stderr.write("error: AGENT_NSEC is not set in the agent env file\n");
-    process.exit(78);
-  }
-
-  const writer = await runWithRelay(
-    {
-      nsec,
-      relayUrl: process.env.AGENT_RELAY_URL,
-      host: process.env.BUZZ_RELAY_HOST,
-      log,
-    },
+  await runWithRelay(
+    { nsec, relayUrl: process.env.AGENT_RELAY_URL, host: process.env.BUZZ_RELAY_HOST, log },
     async (session) => {
-      // Sign in-process so the published event has the same id we echo to the
-      // operator. The writer's NIP-42 AUTH is a separate signed event.
-      const { getKeypairFromHex } = await import("../nostr.mjs");
-      const keypair = getKeypairFromHex(nsec);
-      const event = finalizeEvent(template, keypair.skBytes);
       log(`publishing kind:${event.kind} id:${event.id}`);
       const result = await session.publish(event);
       if (result.ok === true) {
