@@ -10,9 +10,24 @@ AGENTS=(fizz bumble goji)
 
 usage() {
   cat <<'USAGE'
-Usage: coreprt-agent <install|start|stop|restart|status|logs> [fizz|bumble|goji|all]
+Usage: coreprt-agent <command> [args]
 
-Agent secrets belong in ~/.config/coreprt/agents/<name>.env with mode 600.
+Lifecycle (one per agent or "all"):
+  install   Sync source to ~/.local/share/coreprt-agents/ and bootstrap
+  start     Start the named agent LaunchAgent
+  stop      Stop the named agent LaunchAgent
+  restart   Re-sync source and restart
+  status    Print loaded status
+  logs      Tail the named agent log
+
+One-shot commands (operator-driven, exit after publishing or reading):
+  publish <name> [--kind k] [--content text] [--tag k=v ...]
+  req     <name> --kind k [--tag k=v ...] [--search q] [--limit n]
+  search  <name> "<query>" --channel <uuid> [--limit n]
+  digest  <name> [--since <hours>]
+  invite  <name> --ttl <hours> [--code-len n]
+
+Agent secrets live in ~/.config/coreprt/agents/<name>.env with mode 600.
 USAGE
 }
 
@@ -37,7 +52,8 @@ label_for() {
 }
 
 sync_runtime() {
-  mkdir -p "$INSTALL_ROOT" "$CONFIG_ROOT" "$LOG_ROOT"
+  mkdir -p "$INSTALL_ROOT" "$CONFIG_ROOT" "$LOG_ROOT" \
+           "$INSTALL_ROOT/_lib/one-shot"
   rsync -a --delete --exclude node_modules --exclude '*.log' \
     "$SOURCE_ROOT/" "$INSTALL_ROOT/"
   if [[ ! -d "$INSTALL_ROOT/_lib/node_modules" ]]; then
@@ -98,6 +114,42 @@ start_agent() {
   fi
 }
 
+run_one_shot() {
+  local command="$1"
+  local agent="$2"
+  shift 2
+  if [[ -z "$agent" ]]; then
+    echo "usage: coreprt-agent $command <fizz|bumble|goji> [args...]" >&2
+    exit 64
+  fi
+  case "$agent" in fizz|bumble|goji) ;; *)
+    echo "unknown agent: $agent" >&2
+    exit 64
+    ;;
+  esac
+  local env_file="$CONFIG_ROOT/$agent.env"
+  if [[ ! -f "$env_file" ]]; then
+    echo "missing $env_file" >&2
+    exit 78
+  fi
+  sync_runtime
+  set -a
+  # shellcheck disable=SC1090
+  source "$env_file"
+  set +a
+  export AGENT_NAME="$agent"
+  export AGENT_RELAY_URL="${AGENT_RELAY_URL:-ws://127.0.0.1:3300}"
+  export BUZZ_RELAY_HOST="${BUZZ_RELAY_HOST:-coreprt.webrnds.com}"
+  export AGENT_LOG_PREFIX="${AGENT_LOG_PREFIX:-$agent}"
+  local cmd_dir="$INSTALL_ROOT/_lib/one-shot"
+  if [[ ! -f "$cmd_dir/$command.mjs" ]]; then
+    echo "no such one-shot: $command (missing $cmd_dir/$command.mjs)" >&2
+    exit 78
+  fi
+  cd "$INSTALL_ROOT/_lib"
+  exec node "$cmd_dir/$command.mjs" "$agent" "$@"
+}
+
 command="${1:-}"
 target="${2:-all}"
 [[ -n "$command" ]] || { usage; exit 64; }
@@ -130,6 +182,12 @@ case "$command" in
       echo "== $agent =="
       tail -n 50 "$LOG_ROOT/$agent/agent.log" "$LOG_ROOT/$agent/agent.err.log" 2>/dev/null || true
     done < <(selected_agents "$target")
+    ;;
+  publish|req|search|digest|invite)
+    run_one_shot "$command" "$target" "${@:3}"
+    ;;
+  help|--help|-h)
+    usage
     ;;
   *)
     usage
