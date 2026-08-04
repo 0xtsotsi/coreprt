@@ -1,4 +1,10 @@
-# CorePrt — Access API probe · 2026-07-30
+# CorePrt — Access API probe · 2026-07-30 **SUPERSEDED 2026-08-03**
+
+> **This document is no longer the live state.** The Access app `c3f1f0da-…` was deleted on 2026-08-03 and replaced with `974e7f0c-…` (aud `55c81dfc…`). The current policy layout is 3 policies with WARP-required include for the MCP host. See `docs/access-policy.md` for the current live state and `docs/2026-08-03-access-recreate.md` for the recreate run log. The remainder of this file is the historical 2026-07-30 probe results, preserved for the audit trail.
+
+<details>
+
+# CorePrt — Access API probe · 2026-07-30 [historical]
 
 **Goal:** confirm whether Cloudflare Access resources for CorePrt can be created via the API using the token now stored in `CorePrt-deploy/.env`.
 
@@ -136,3 +142,9 @@ The credentials live at **`~/.config/coreprt/buzz-mcp.env`** (mode 600), outside
 4. Restart any MCP bridge that had the old credentials cached.
 
 Build the publication branch from the sanitized final tree and run a secret scan before push. Cleanup of local reflogs and unreachable objects is a separate operator action after recovery is no longer needed.
+
+</details>
+
+## Update 2026-08-03
+
+The recreate test (`docs/2026-08-03-access-recreate.md`) refuted the service-token hypothesis: a fresh app + fresh token still gets 403 at the edge. The 2026-07-31 "re-creation note" in earlier docs that claimed `b6542dbe…` was working is **factually wrong** — the authed 200s were probably from a cached WARP session on the operator's machine, not from the service token. The current live state (3 policies, WARP-required include for MCP, zero service tokens) is in `docs/access-policy.md`.

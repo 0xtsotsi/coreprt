@@ -16,7 +16,13 @@ _Operator-side steps (WARP enrollment on Mac, dashboard service-token rotation) 
 - status: healthy
 - connectors: 4
 
-## Access app CorePrt (c3f1f0da-...)
+## Access app CorePrt (c3f1f0da-...) **SUPERSEDED 2026-08-03**
+
+> **This snapshot is from 2026-07-30 and is no longer the live state.** The app `c3f1f0da-…` was deleted on 2026-08-03 and replaced with `974e7f0c-8027-4183-a66d-394847b4ddd9` (audience `55c81dfc…`). The current policy layout is 3 policies: `mcp-warp-required` (prec 1), `owner-trusted-mac` (prec 2), `owner-anywhere` (prec 3 with NL geo + 6h session). The current canonical live state is in `docs/access-policy.md`; the recreate run log is in `docs/2026-08-03-access-recreate.md`. The remainder of this file is the historical 2026-07-30 snapshot, preserved for the audit trail.
+
+<details>
+
+## Access app CorePrt (c3f1f0da-...) [historical]
 - name: CorePrt
 - aud: 75f368ec604e03651d9c0590894c2e12be90c91b70be064cacbdb144b292796e
 - domain: coreprt.webrnds.com
@@ -56,3 +62,9 @@ This is the third token rotation in this session. **All three secrets are reject
 3. The dashboard-created `c6299e6f…b8a7d3` (above).
 
 The pattern is consistent: every `client_secret` returned by Cloudflare's APIs is accepted by the API (`success: true`) but rejected by the edge (`service_token_status: false` in the JWT meta). This points to a Cloudflare edge-side bug or unannounced account-level gate.
+
+</details>
+
+## Update 2026-08-03
+
+The hypothesis (Cloudflare edge-side bug) was confirmed by the recreate test on 2026-08-03. The fresh app + fresh token route did not unstick the rejection. **Workaround candidate (2)** (WARP-only auth) was implemented: see `docs/access-policy.md` and `docs/2026-08-03-access-recreate.md`. All service tokens are deleted as of 2026-08-03; the service-token path is permanently retired on this account.

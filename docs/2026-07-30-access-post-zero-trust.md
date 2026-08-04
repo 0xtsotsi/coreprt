@@ -1,4 +1,10 @@
-# CorePrt — Zero Trust plan activated · 2026-07-30
+# CorePrt — Zero Trust plan activated · 2026-07-30 **SUPERSEDED 2026-08-03**
+
+> **This document is no longer the live state.** The Access app `c3f1f0da-…` was deleted on 2026-08-03 and replaced with `974e7f0c-…` (aud `55c81dfc…`). The current policy layout is 3 policies including a new `mcp-warp-required` for the MCP host. See `docs/access-policy.md` for the current live state and `docs/2026-08-03-access-recreate.md` for the recreate run log. The remainder of this file is the historical 2026-07-30 activation notes, preserved for the audit trail.
+
+<details>
+
+# CorePrt — Zero Trust plan activated · 2026-07-30 [historical]
 
 **Trigger:** operator paid for Cloudflare Zero Trust subscription; plan upgrade visible at the API level (WAF:Edit now allowed at zone scope; posture integration list reachable).
 
@@ -39,3 +45,9 @@
 Granted and working: account-scoped Apps CRUD, account-scoped Policies CRUD, IdP Read, Org Read, Access Groups Read, posture features Read, WAF:Edit (zone scope).
 
 Granted but endpoint structurally unavailable for this account: Service Tokens (`/accounts/{id}/access/service-tokens` with hyphen returns 404 code 10001; the underscored `/accounts/{id}/access/service_tokens` route is reachable for create/list/read/rotate/delete, but its API-created secrets are rejected at the edge), Tunnel credential refresh (404).
+
+</details>
+
+## Update 2026-08-03
+
+The WARP-required include for the MCP host (originally suggested as "if headless MCP auth is needed later, plan a WARP-only authentication path on the MCP host") was implemented on 2026-08-03. See `docs/access-policy.md` and `docs/2026-08-03-access-recreate.md`.
