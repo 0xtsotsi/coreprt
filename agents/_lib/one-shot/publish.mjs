@@ -67,16 +67,18 @@ async function main() {
   }
 
   const tags = flags.tags.map(parseTag);
-  const template = buildEventTemplate({
-    kind: flags.kind,
-    content: flags.content ?? "",
-    tags,
-    createdAt: flags.createdAt,
-  });
   // Sign in-process so the published event has the same id we echo to the
   // operator. The writer's NIP-42 AUTH is a separate signed event.
   const keypair = getKeypairFromHex(nsec);
-  const event = finalizeEvent(template, keypair.skBytes);
+  const event = finalizeEvent(
+    buildEventTemplate({
+      kind: flags.kind,
+      content: flags.content ?? "",
+      tags,
+      createdAt: flags.createdAt,
+    }),
+    keypair.skBytes
+  );
 
   await runWithRelay(
     { nsec, relayUrl: process.env.AGENT_RELAY_URL, host: process.env.BUZZ_RELAY_HOST, log },
