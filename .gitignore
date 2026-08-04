@@ -2,6 +2,7 @@
 
 # Secrets — never commit
 CorePrt-deploy/.env
+CorePrt-deploy/.env.*
 CorePrt-deploy/creds.json
 CorePrt-deploy/cert.pem
 CorePrt-cloudflare/creds.json
@@ -17,6 +18,13 @@ CorePrt-*-backup-*.txt
 CorePrt-*-2026-*.json
 CorePrt-*-2026-*.txt
 CorePrt-*-keygen-output.txt
+
+# Agent runtime state and installed dependencies
+agents/**/logs/
+agents/**/node_modules/
+# Bun lockfiles are not used (npm is the only installer)
+agents/**/bun.lock
+agents/**/bun.lockb
 
 # block/buzz source — cloned as a sibling working tree, NOT vendored
 # or tracked as a submodule. The clone has its own .git/ and the

@@ -52,16 +52,16 @@ reboot. Verify with `brew services list | grep cloudflared`.
    - Name: `CorePrt`
    - Domain: `coreprt.webrnds.com`
    - Policy: name `owner-only`, action **Allow**, session **24h**
-   - Include: Emails → `gogetta`
+   - Include: Emails → `schreuderdarren@gmail.com`
 
 3. Verify:
    - In a private browser window (not logged into CF): `https://coreprt.webrnds.com`
-     → Cloudflare Access login screen → only `gogetta` email is allowed.
+     → Cloudflare Access login screen → only `schreuderdarren@gmail.com` is allowed.
    - In the desktop Buzz app (pointed at `wss://coreprt.webrnds.com`): same gate.
 
 ## Honest caveats
 
-- **Default email gate is permissive within the email.** `gogetta` can log in from any
+- **Default email gate is permissive within the email.** `schreuderdarren@gmail.com` can log in from any
   device. If you want device posture checks (managed device IDs, geo-fencing, etc.), add
   a second rule on the same policy.
 - **Cloudflare Access has a 1-day cache once you log in.** Reauth on a new browser; the
