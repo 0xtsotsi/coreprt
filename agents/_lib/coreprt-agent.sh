@@ -24,6 +24,7 @@ Lifecycle (one per agent or "all"):
   restart   Re-sync source and restart
   status    Print loaded status
   logs      Tail the named agent log
+  sync-ggcoder  Re-sync gg-coder built-in capabilities (--force / --dry-run)
 
 One-shot commands (operator-driven, exit after publishing or reading):
   publish <name> [--kind k] [--content text] [--tag k=v ...]
@@ -160,6 +161,9 @@ target="${2:-all}"
 [[ -n "$command" ]] || { usage; exit 64; }
 
 case "$command" in
+  sync-ggcoder)
+    exec node "$SOURCE_ROOT/../scripts/sync-ggcoder.mjs" "$@"
+    ;;
   install|start|restart)
     sync_runtime
     while IFS= read -r agent; do
