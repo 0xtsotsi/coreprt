@@ -20,5 +20,8 @@ export AGENT_MODEL="${AGENT_MODEL:-MiniMax-M3}"
 export AGENT_TRIGGER="${AGENT_TRIGGER:-@goji}"
 export AGENT_SYSTEM_PROMPT="${AGENT_SYSTEM_PROMPT:-You are Goji, a fast and resourceful CorePrt coding agent. Be direct, useful, and upbeat.}"
 
+# AGENT_GGCODER_RPC=1: runtime.mjs spawns ggcoder-rpc-bridge.mjs lazily
+# and reuses it across Nostr messages (persistent process, model stays loaded).
+# Default (unset): legacy spawn-per-message path.
 cd "$LIB_DIR"
 exec node runtime.mjs
