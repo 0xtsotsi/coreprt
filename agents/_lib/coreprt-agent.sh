@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve the real source path of this script. When invoked via a symlink
+# (the `~/.local/bin/coreprt-agent` -> `agents/_lib/coreprt-agent.sh`
+# symlink) or via PATH (where BASH_SOURCE[0] is just the script name), the
+# naive `dirname "${BASH_SOURCE[0]}"` resolves wrong. `realpath` follows the
+# symlink to the actual repo location.
+SOURCE_ROOT="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 INSTALL_ROOT="${COREPRT_AGENT_INSTALL_ROOT:-$HOME/.local/share/coreprt-agents}"
 CONFIG_ROOT="${COREPRT_AGENT_CONFIG_ROOT:-$HOME/.config/coreprt/agents}"
 LOG_ROOT="${COREPRT_AGENT_LOG_ROOT:-$HOME/Library/Logs/CorePrt/agents}"
@@ -19,6 +24,7 @@ Lifecycle (one per agent or "all"):
   restart   Re-sync source and restart
   status    Print loaded status
   logs      Tail the named agent log
+  sync-ggcoder  Re-sync gg-coder built-in capabilities (--force / --dry-run)
 
 One-shot commands (operator-driven, exit after publishing or reading):
   publish <name> [--kind k] [--content text] [--tag k=v ...]
@@ -155,6 +161,9 @@ target="${2:-all}"
 [[ -n "$command" ]] || { usage; exit 64; }
 
 case "$command" in
+  sync-ggcoder)
+    exec node "$SOURCE_ROOT/../scripts/sync-ggcoder.mjs" "$@"
+    ;;
   install|start|restart)
     sync_runtime
     while IFS= read -r agent; do
