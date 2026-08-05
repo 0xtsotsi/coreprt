@@ -11,7 +11,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LAUNCHER="${SCRIPT_DIR}/start-buzz-desktop-local.sh"
+LAUNCHER="${SCRIPT_DIR}/start-buzz-desktop.sh"
 STUB_DIR="$(mktemp -d -t buzz-test.XXXXXX)"
 trap 'rm -rf "$STUB_DIR"' EXIT
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# start-buzz-desktop-local.sh — launch Buzz.app pointed at the CorePrt relay.
+# start-buzz-desktop.sh — launch Buzz.app pointed at the CorePrt relay.
 #
 # Why this exists:
 #   CorePrt-relay/desktop/src-tauri/src/relay.rs precedence is:

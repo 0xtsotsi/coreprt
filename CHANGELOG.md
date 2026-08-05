@@ -78,6 +78,10 @@ Merged PRs #5 + #6 (fast-forward). Supersedes the now-closed PR #5
 - Fix: pre-flight warning logic in the launcher used `if ! curl ... >/dev/null 2>&1` which discarded the `-w '%{http_code}'` output and caused the warning to fire unconditionally in public mode. Now captures the status code, probes both `wss:///_liveness` and the `https://` root, and only warns when both return non-200.
 - `scripts/README.md` now lists every script with its purpose, including the launcher's new public-by-default behavior.
 
+## 2026-08-05 — Rename Buzz desktop launcher
+
+- `scripts/start-buzz-desktop-local.sh` → `scripts/start-buzz-desktop.sh`. The `-local` suffix is stale now that the script is the primary launcher (default: public tunnel); follow-up to PR #7. Live pointers updated: `scripts/test-start-buzz-desktop.sh` `LAUNCHER=` reference and `scripts/README.md` table row. Historical references in earlier CHANGELOG entries and `.gg/reviews/2026-08-04-coreprt-full.md` left as-is to preserve accurate past-tense records.
+
 ## 2026-07-31 — @buzz/mcp rollout (v0.1.0)
 
 - Six `gogetta/buzz-mcp` PRs merged into `https://github.com/0xtsotsi/buzz-mcp` (default branch `main`) (commits `5b78eb9` → `6e9526e`). 16 MCP tools, 9 event builders, BIP-340 signer, NIP-98 HTTP, NIP-42 WS, 93 tests, operator docs.
