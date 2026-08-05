@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.coreprt.ggcoder-watch</string>
+    <key>WatchPaths</key>
+    <array>
+        <!-- The installed gg-coder package.json. mtime changes when npm
+             installs/updates the package, which is the trigger we want. -->
+        <string>/Users/gogetta/.npm-global/lib/node_modules/@kenkaiiii/ggcoder/package.json</string>
+        <string>/Users/gogetta/.npm-global/lib/node_modules/@kenkaiiii/ggcoder/dist/core</string>
+    </array>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/gogetta/Documents/projects/CorePrt/scripts/postinstall-ggcoder.sh</string>
+    </array>
+    <key>StandardOutPath</key>
+    <string>/Users/gogetta/Library/Logs/CorePrt/ggcoder-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/gogetta/Library/Logs/CorePrt/ggcoder-sync.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
