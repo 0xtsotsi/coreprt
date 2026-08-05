@@ -84,9 +84,31 @@ fi
 # Export the env var so launchd propagates it to the child process.
 export BUZZ_RELAY_URL="${RELAY_URL}"
 
+# Wire the desktop's "Welcome Team" (builtin:fizz + builtin:honey +
+# builtin:bumble) to MiniMax-M3. The desktop app launches its own copy of
+# `buzz-agent` per agent persona, and that subprocess reads BUZZ_AGENT_PROVIDER
+# from inherited env (CorePrt-relay/crates/buzz-agent/src/config.rs:783).
+#
+# Without this, the desktop defaults to whatever the app's Info.plist
+# bakes in (likely `anthropic`), so the Welcome Team appears idle in chat
+# even though the relay is healthy. Pass the API key only if the operator
+# has it in their env.
+export BUZZ_AGENT_PROVIDER="${BUZZ_AGENT_PROVIDER:-minimax}"
+export BUZZ_AGENT_MODEL="${BUZZ_AGENT_MODEL:-MiniMax-M3}"
+# Operator stores the API key in ~/.config/coreprt/minimax.env (existing
+# convention; verified 2026-08-05). Source it into the launcher env if not
+# already set. set -a ensures all assigned vars auto-export to the
+# child Buzz process.
+if [[ -z "${MINIMAX_API_KEY:-}" && -f "$HOME/.config/coreprt/minimax.env" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$HOME/.config/coreprt/minimax.env"
+  set +a
+fi
+
 # Production launcher is /usr/bin/open. Tests can override via
 # BUZZ_DESKTOP_LAUNCHER to inject a stub that records the env.
 LAUNCHER_BIN="${BUZZ_DESKTOP_LAUNCHER:-/usr/bin/open}"
 
-echo "→ Starting Buzz.app with BUZZ_RELAY_URL=${RELAY_URL}"
+echo "→ Starting Buzz.app with BUZZ_RELAY_URL=${RELAY_URL} BUZZ_AGENT_PROVIDER=${BUZZ_AGENT_PROVIDER} BUZZ_AGENT_MODEL=${BUZZ_AGENT_MODEL}"
 exec "${LAUNCHER_BIN}" -a /Applications/Buzz.app --args "$@"
