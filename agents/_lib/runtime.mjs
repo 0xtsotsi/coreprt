@@ -563,3 +563,40 @@ try {
 }
 log(`subscribing to channel ${channelId}`);
 relay.subscribe({ kinds: [9], "#h": [channelId] });
+
+// ── NIP-38 presence ping (interim) ──────────────────────────────
+// Task 1d591845 is implementing the full NIP-38 (status pings, dnd,
+// working/idle/deep-build states). This is a one-shot kind:30315
+// publish on startup so the agent shows up as an active channel
+// member in the client roster. Will be replaced by the full
+// implementation when the task lands + merges.
+// Per NIP-38: d tag is the status type, content is the human-readable
+// status text, r/p/e tags are optional links. Expiration is a unix
+// timestamp after which the status is invalid (clients stop showing).
+// Defer until the AUTH handshake completes (max 10s) so the
+// publish doesn't race the AUTH challenge.
+try {
+  const authDeadline = Date.now() + 10_000;
+  while (!relay.authenticated && Date.now() < authDeadline) {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  if (!relay.authenticated) throw new Error("auth timeout");
+  // 1h expiry so a dead agent's "active" status self-clears.
+  const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+  const statusEvent = finalizeEvent(
+    {
+      kind: 30315,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ["d", "general"],
+        ["expiration", String(expiresAt)],
+      ],
+      content: `🟢 ${name} active (ggcoder · ${process.env.AGENT_MODEL ?? "MiniMax-M3"})`,
+    },
+    keypair.skBytes
+  );
+  const result = await relay.publish(statusEvent);
+  log(`presence ping published: ${JSON.stringify(result)}`);
+} catch (err) {
+  log(`presence ping failed: ${err.message}`);
+}
