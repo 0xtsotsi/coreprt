@@ -71,6 +71,13 @@ Merged PRs #5 + #6 (fast-forward). Supersedes the now-closed PR #5
 - `scripts/start-buzz-desktop-local.sh`: dev-only launcher that sets `BUZZ_RELAY_URL=ws://127.0.0.1:3300` and clears stale `defaults` keys. Annotated in CLAUDE.md as not-for-production; the main instance remains `wss://coreprt.webrnds.com`.
 - Removed stray `scripts/patch-test-name.py` and `scripts/pr-{7,8,9,10}-body.md` — they belong in `~/Documents/projects/buzz-mcp/`, not in this ops repo.
 
+## 2026-08-05 — Buzz desktop launcher: public-by-default
+
+- `scripts/start-buzz-desktop-local.sh`: behavior flipped. Default now launches the desktop app against `wss://coreprt.webrnds.com` (the public Cloudflare Tunnel, reachable from any network with a WARP-enrolled host). `--local` / `-l` forces `ws://127.0.0.1:3300` for tunnel-down scenarios. Added `--public`, `--relay-url`, `--help` flags and a `BUZZ_DESKTOP_LAUNCHER` env var for testability. Rationale: the operator needs the same context (channels, agents, history) on the host Mac AND remote, with no manual switching.
+- Added `scripts/test-start-buzz-desktop.sh` covering all flag/env combinations (15 cases, all passing): `bash -n` syntax, default → public, `--local` → loopback, `--relay-url` override, `BUZZ_HTTP_PORT` honored only on `--local`, unknown flags fall through to the launcher binary, `--help` is non-executing, trailing args forwarded, pre-flight warning suppressed on reachable URL, pre-flight warning fires on connection-refused URL, `--local` skips the pre-flight entirely.
+- Fix: pre-flight warning logic in the launcher used `if ! curl ... >/dev/null 2>&1` which discarded the `-w '%{http_code}'` output and caused the warning to fire unconditionally in public mode. Now captures the status code, probes both `wss:///_liveness` and the `https://` root, and only warns when both return non-200.
+- `scripts/README.md` now lists every script with its purpose, including the launcher's new public-by-default behavior.
+
 ## 2026-07-31 — @buzz/mcp rollout (v0.1.0)
 
 - Six `gogetta/buzz-mcp` PRs merged into `https://github.com/0xtsotsi/buzz-mcp` (default branch `main`) (commits `5b78eb9` → `6e9526e`). 16 MCP tools, 9 event builders, BIP-340 signer, NIP-98 HTTP, NIP-42 WS, 93 tests, operator docs.
