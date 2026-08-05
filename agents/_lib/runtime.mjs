@@ -102,6 +102,86 @@ async function handleMessage(event) {
   );
   const result = await relay.publish(replyEvent);
   log(`publish result: ${JSON.stringify(result)}`);
+
+  // Autopilot (always on, mirrors gg-coder kenAuto).
+  // After publishing the build reply, ask Ken to review the just-completed
+  // work. If Ken returns PROMPT, the fix-prompt is re-injected as a fresh
+  // kind:9 — the build session will see it on the next relay subscription
+  // tick and process it normally.
+  try {
+    const { runAutopilot } = await import("./autopilot-loop.mjs");
+    const stats = await gatherTurnStats();
+    if (stats) {
+      const outcome = await runAutopilot({
+        agent: name,
+        keypair,
+        relay,
+        channelId,
+        lastReplyEventId: replyEvent.id,
+        stats,
+        log,
+      });
+      log(`autopilot outcome: ${JSON.stringify(outcome)}`);
+    }
+  } catch (err) {
+    log(`autopilot error: ${err.message}`);
+  }
+}
+
+// Compute changedLines / writeCalls / editCalls / bashCalls from the working
+// tree (git diff HEAD). Used to decide whether Ken should review the turn.
+// Tool-call granularity is inferred from per-file diff metadata:
+// - each file in the diff → one tool call
+// - .sh / .bash / Makefile changes → bashCall
+// - new files (+++/--- header with no source lines in HEAD) → writeCall
+// - existing files modified → editCall
+async function gatherTurnStats() {
+  const { execSync } = await import("node:child_process");
+  let diff;
+  try {
+    diff = execSync("git diff HEAD -- .", {
+      cwd: process.env.GG_CWD || new URL("..", import.meta.url).pathname,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    return null;
+  }
+  if (!diff.trim()) return null;
+  const lines = diff.split("\n");
+  // Count only `+` / `-` data lines, NOT the `+++` / `---` file headers.
+  const changedLines = lines.filter(
+    (l) => (l.startsWith("+") && !l.startsWith("+++")) || (l.startsWith("-") && !l.startsWith("---"))
+  ).length;
+  // Walk per-file diff sections to tally one tool call per file.
+  const files = []; // [{ path, isNew, isBash }]
+  let current = null;
+  for (const line of lines) {
+    if (line.startsWith("diff --git ")) {
+      const m = /diff --git a\/(.+) b\/(.+)/.exec(line);
+      if (m) {
+        current = { path: m[2], isNew: false, isBash: /\.(sh|bash)$/i.test(m[2]) || /Makefile$/i.test(m[2]) };
+        files.push(current);
+      }
+    } else if (current && line.startsWith("new file mode")) {
+      current.isNew = true;
+    }
+  }
+  let bashCalls = 0, writeCalls = 0, editCalls = 0;
+  for (const f of files) {
+    if (f.isBash) bashCalls++;
+    else if (f.isNew) writeCalls++;
+    else editCalls++;
+  }
+  return {
+    changedLines,
+    toolCalls: files.length,
+    toolFailures: 0,
+    turns: 1,
+    writeCalls,
+    editCalls,
+    bashCalls,
+  };
 }
 
 function askRuntime(userContent) {
@@ -386,7 +466,7 @@ function askRuntimeRpc(userContent) {
       rpcPending.delete(id);
       log("rpc timeout (90s)");
       resolve(entry.lines.join("").trim());
-    }, 90_000);
+    }, routed.handled ? 180_000 : 90_000);
     // wrap resolve to clear timer
     const origResolve = entry.resolve;
     entry.resolve = (val) => {
