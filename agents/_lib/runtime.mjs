@@ -506,11 +506,17 @@ function askRuntimeRpc(userContent) {
 }
 
 function routeBridgeEvent(event) {
+  // Each agent serializes prompts through messageQueue (handleMessage), so only
+  // one in-flight prompt per agent at a time. We can safely route by FIFO when
+  // ggcoder doesn't echo the request id on text_delta. Final result/error
+  // events are still id-strict — those are the atomic handshake.
+  const earliestId = () => {
+    const it = rpcPending.keys().next();
+    return it.done ? null : it.value;
+  };
   if (event.type === "text_delta" && typeof event.text === "string") {
-    // Strict id-only routing — ggcoder echoes our prompt id on every streamed
-    // event. Events without an id are dropped to prevent misattribution
-    // across concurrent in-flight prompts (bumble's review caught this risk).
-    const pending = event.id ? rpcPending.get(event.id) : undefined;
+    const targetId = event.id ?? earliestId();
+    const pending = targetId ? rpcPending.get(targetId) : undefined;
     if (pending) pending.lines.push(event.text);
   } else if (event.type === "result" && rpcPending.has(event.id)) {
     const { resolve, lines } = rpcPending.get(event.id);
