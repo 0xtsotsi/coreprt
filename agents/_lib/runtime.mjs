@@ -65,9 +65,9 @@ function isTriggeredChannelMessage(event) {
   // Slash commands are addressed at a specific agent via the command name.
   // Operator can say `/review` (no @) and the receiving agent will route it.
   // We match against the registered slash commands to avoid false positives.
-  const cmds = loadSlashCommands(
-    process.env.GG_CWD || new URL(".", import.meta.url).pathname
-  );
+  // loadSlashCommands accepts `null` for cwd and falls back to the repo-root
+  // search path on its own.
+  const cmds = loadSlashCommands(process.env.GG_CWD);
   const isSlash = /^\s*\/([a-zA-Z0-9_-]+)/.exec(event.content);
   if (isSlash && cmds.has(isSlash[1].toLowerCase())) return true;
   return false;
@@ -325,11 +325,6 @@ function parseRuntimeOutput(stdout) {
 let rpcBridge = null;
 let rpcNextId = 1;
 const rpcPending = new Map(); // id → { resolve, lines }
-// Map from the *bridge-side* prompt id to our internal rpc id. ggcoder echoes
-// the same id we send it, so we can correlate text_delta events to the right
-// pending entry instead of guessing by insertion order.
-const rpcIdByBridgeId = new Map();
-let rpcLastBridgeId = null;
 
 function ensureBridge() {
   if (rpcBridge && !rpcBridge.killed) return rpcBridge;
@@ -368,8 +363,6 @@ function ensureBridge() {
     // reject all pending
     for (const [, { resolve }] of rpcPending) resolve("");
     rpcPending.clear();
-    rpcIdByBridgeId.clear();
-    rpcLastBridgeId = null;
   });
   bridge.on("error", (err) => {
     log(`rpc bridge spawn error: ${err.message}`);
@@ -494,12 +487,10 @@ function routeBridgeEvent(event) {
   } else if (event.type === "result" && rpcPending.has(event.id)) {
     const { resolve, lines } = rpcPending.get(event.id);
     rpcPending.delete(event.id);
-    rpcIdByBridgeId.delete(event.id);
     resolve(lines.join("").trim());
   } else if (event.type === "error" && rpcPending.has(event.id)) {
     const { resolve } = rpcPending.get(event.id);
     rpcPending.delete(event.id);
-    rpcIdByBridgeId.delete(event.id);
     log(`rpc error: ${event.message}`);
     resolve("");
   }

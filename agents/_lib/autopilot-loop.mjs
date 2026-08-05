@@ -12,8 +12,6 @@
 // Always on. No toggle. Capped at MAX_AUTOPILOT_ROUNDS iterations.
 
 import { spawn } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import { execSync } from "node:child_process";
 
 const MAX_AUTOPILOT_ROUNDS = 3;
@@ -70,10 +68,11 @@ function runKenReview(systemPrompt, userPrompt) {
       }
     );
     const id = `ken-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const collected = [];
     let buf = "";
     const timer = setTimeout(() => {
       bridge.kill("SIGTERM");
-      resolve("");
+      resolve(collected.join(""));
     }, 60_000);
     bridge.stdout.on("data", (chunk) => {
       buf += chunk.toString();
@@ -84,22 +83,26 @@ function runKenReview(systemPrompt, userPrompt) {
         if (!line) continue;
         let event;
         try { event = JSON.parse(line); } catch { continue; }
+        // ggcoder echoes our prompt id on every streamed event; use it to
+        // correlate text_delta events to this Ken review (strict routing —
+        // see the parallel logic in runtime.mjs routeBridgeEvent).
         if (event.type === "text_delta" && event.id === id && typeof event.text === "string") {
-          // accumulate — final reply is built from all deltas
+          collected.push(event.text);
         }
         if (event.type === "result" && event.id === id) {
           clearTimeout(timer);
-          const reply = (event.data?.text ?? "").toString();
+          const reply = (typeof event.data?.text === "string") ? event.data.text : "";
+          const finalReply = reply || collected.join("");
           bridge.kill("SIGTERM");
-          resolve(reply);
+          resolve(finalReply);
         }
         if (event.type === "error" && event.id === id) {
           clearTimeout(timer);
-          resolve("");
+          resolve(collected.join(""));
         }
       }
     });
-    bridge.on("exit", () => { clearTimeout(timer); resolve(""); });
+    bridge.on("exit", () => { clearTimeout(timer); resolve(collected.join("")); });
     bridge.stdin.write(JSON.stringify({ id, command: "prompt", text: userPrompt }) + "\n");
   });
 }
