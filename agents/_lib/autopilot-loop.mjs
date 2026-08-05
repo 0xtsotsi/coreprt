@@ -117,7 +117,11 @@ function getRecentDiff(since) {
 }
 
 // ── the autopilot loop itself ──────────────────────────────────────
-export async function runAutopilot({ agent, keypair, relay, channelId, lastReplyEventId, stats, log }) {
+export async function runAutopilot({ agent, keypair, relay, channelId, lastReplyEventId, stats, log, skip }) {
+  if (skip) {
+    log("autopilot: skip (slash command reply)");
+    return { skipped: true, reason: "slash command reply" };
+  }
   const decision = evaluateIdealReview(stats);
   if (!decision.shouldReview) {
     log(`autopilot: shouldReview=false (score=${decision.score}) — skipping`);

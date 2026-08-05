@@ -112,6 +112,33 @@ async function handleMessage(event) {
     const { runAutopilot } = await import("./autopilot-loop.mjs");
     const stats = await gatherTurnStats();
     if (stats) {
+      // Post-tool hook: if the just-completed turn wrote code, auto-enqueue
+      // a /compare slash command. GG-coder does this through the sidecar
+      // (`autopilot-gate.js` triggers `ken-compare` after every turn with
+      // mutations); we mirror the same hook by publishing a follow-up
+      // kind:9 with content "/compare" addressed at ourselves. The slash
+      // router will expand it on the next subscription tick.
+      //
+      // Loop guard: don't re-compare after a slash command reply, since
+      // the agent is in read-only "review" / "reflect" / "test" mode, not
+      // writing code. Detected by checking whether the inbound event's
+      // content starts with `/<cmd>`. (The slash router strips the prefix
+      // before sending to ggcoder, but we still have the original event.)
+      const isSlashReply = /^\s*\//.test(event.content);
+      const wroteCode = (stats.writeCalls + stats.editCalls) > 0;
+      if (wroteCode && !isSlashReply) {
+        log(`post-tool hook: enqueueing /compare (wrote ${stats.writeCalls} new, ${stats.editCalls} edits)`);
+        const compareEvent = finalizeEvent(
+          {
+            kind: 9,
+            created_at: Math.floor(Date.now() / 1000) + 1,
+            tags: [["h", channelId], ["e", replyEvent.id]],
+            content: "/compare",
+          },
+          keypair.skBytes
+        );
+        await relay.publish(compareEvent);
+      }
       const outcome = await runAutopilot({
         agent: name,
         keypair,
@@ -120,6 +147,7 @@ async function handleMessage(event) {
         lastReplyEventId: replyEvent.id,
         stats,
         log,
+        skip: isSlashReply, // slash-command replies don't produce diff
       });
       log(`autopilot outcome: ${JSON.stringify(outcome)}`);
     }
