@@ -117,10 +117,24 @@ function getRecentDiff(since) {
 }
 
 // ── the autopilot loop itself ──────────────────────────────────────
-export async function runAutopilot({ agent, keypair, relay, channelId, lastReplyEventId, stats, log, skip }) {
+export async function runAutopilot({ agent, keypair, relay, channelId, lastReplyEventId, stats, log, skip, tags, content }) {
   if (skip) {
     log("autopilot: skip (slash command reply)");
     return { skipped: true, reason: "slash command reply" };
+  }
+  // ── gauntlet delegation (PR-3) — runs before Ken when the turn is
+  // tagged with `bar:<name>` or mentions `/gauntlet <bar-name>`. The
+  // gauntlet publishes its own kind:1111 verdict; Ken does NOT also run.
+  const gauntletRef = detectGauntletTag({ tags: tags ?? [], content: content ?? "" });
+  if (gauntletRef) {
+    const gauntletResult = await maybeRunGauntlet({
+      opts: { gauntlet: { barName: gauntletRef.barName, agent }, builderOutput: content ?? "" },
+      relay, keypair, channelId, lastReplyEventId, log,
+    });
+    if (gauntletResult) {
+      return { skipped: false, verdict: gauntletResult.verdict.kind, rounds: 1, gauntlet: gauntletResult };
+    }
+    // bar not found → fall through to Ken with a log line.
   }
   const decision = evaluateIdealReview(stats);
   if (!decision.shouldReview) {
@@ -205,4 +219,78 @@ async function publishBuildInjection(relay, keypair, channelId, agent, body) {
     keypair.skBytes
   );
   await relay.publish(event);
+}
+
+// ── gauntlet delegation (PR-3) ──────────────────────────────────────
+// When the just-completed turn is tagged with a `bar:<name>` or carries
+// a `/gauntlet <bar-name>` slash command, the autopilot delegates the
+// review to agents/_lib/gauntlet.mjs instead of the default Ken path.
+//
+// The gauntlet verdict publishes as a kind:1111 (NIP-22) comment on the
+// builder's reply event. On LOSE/EQUAL it injects the gap back as a
+// follow-up kind:9 to the builder; on WIN/HUMAN it exits the loop.
+//
+// If `opts.gauntlet` is null/undefined, this function returns null and
+// the caller falls through to the existing Ken review path.
+export async function maybeRunGauntlet({ opts, relay, keypair, channelId, lastReplyEventId, log }) {
+  if (!opts?.gauntlet || !opts?.builderOutput) return null;
+  const gauntlet = await import("./gauntlet.mjs");
+  const bar = gauntlet.loadBar(opts.gauntlet.barName);
+  if (!bar) {
+    log(`gauntlet: bar "${opts.gauntlet.barName}" not found; falling through to Ken review`);
+    return null;
+  }
+  const runId = opts.gauntlet.runId ?? `gauntlet-${lastReplyEventId?.slice(0, 8) ?? Date.now()}`;
+  if (!gauntlet.resumeRun(runId)) {
+    gauntlet.startRun({
+      runId,
+      bar,
+      builderPubkey: opts.gauntlet.builderPubkey ?? "unknown",
+      agent: opts.gauntlet.agent ?? "unknown",
+    });
+  }
+  log(`gauntlet: round ${1} bar=${opts.gauntlet.barName} runId=${runId}`);
+  const result = await gauntlet.nextRound({
+    runId,
+    builderOutput: opts.builderOutput,
+    builderEventId: lastReplyEventId,
+  });
+  // Publish the kind:1111 verdict comment so the channel sees it.
+  const { finalizeEvent } = await import("./nostr.mjs");
+  const verdictEvent = finalizeEvent(
+    {
+      kind: 1111, // NIP-22 comment
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ["h", channelId],
+        ["e", lastReplyEventId, "reply"],
+        ["gauntlet", opts.gauntlet.barName],
+        ["verdict", result.verdict.kind.toUpperCase()],
+        ["client", "coreprt-gauntlet"],
+      ],
+      content: result.body,
+    },
+    keypair.skBytes
+  );
+  await relay.publish(verdictEvent);
+  log(`gauntlet: verdict=${result.verdict.kind} done=${result.done}`);
+  return { runId, verdict: result.verdict, done: result.done };
+}
+
+// Extract a `bar:<name>` reference from the turn's tags/content if any.
+// Used by runtime.mjs to populate opts.gauntlet before calling the
+// autopilot loop. Pure function so it can be unit-tested.
+export function detectGauntletTag({ tags = [], content = "" } = {}) {
+  // Tag form: ["bar", "<name>"] in the tags array (Nostr event tags).
+  for (const t of tags) {
+    if (Array.isArray(t) && t[0] === "bar" && typeof t[1] === "string") {
+      return { barName: t[1], source: "tag" };
+    }
+  }
+  // Slash form: "/gauntlet <bar-name>" anywhere in the content.
+  // Bar names are slug-shaped ([a-z0-9._-]+); trailing punctuation is
+  // stripped before matching so "linear-pricing." reads as "linear-pricing".
+  const m = content.replace(/[.,;:!?]+/g, " ").match(/\/gauntlet\s+([a-z0-9._-]+)/i);
+  if (m) return { barName: m[1], source: "slash" };
+  return null;
 }

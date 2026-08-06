@@ -1,0 +1,11 @@
+{
+  "kind": "site",
+  "ref": {
+    "name": "thecardyard-astro homepage",
+    "url": "http://127.0.0.1:4321/",
+    "owner": "webrnds"
+  },
+  "fetch": "screenshot",
+  "comparable": "side-by-side",
+  "notes": "The webrnds-default site bar. Every webrnds-built site must beat this blind A/B. Screenshot at 1280x800 and 390x844 (mobile) via the Playwright capture in sight/scripts/visual-capture.mjs. The critic renders both at the same viewport, strips labels, and asks 'which one would you bookmark and share?'."
+}

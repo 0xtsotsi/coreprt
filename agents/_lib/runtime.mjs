@@ -148,6 +148,8 @@ async function handleMessage(event) {
         stats,
         log,
         skip: isSlashReply, // slash-command replies don't produce diff
+        tags: event.tags, // 2026-08-06: gauntlet delegation (PR-3) reads bar:<name> tags
+        content: event.content, // 2026-08-06: gauntlet delegation also reads /gauntlet <bar> in body
       });
       log(`autopilot outcome: ${JSON.stringify(outcome)}`);
     }
@@ -591,7 +593,7 @@ try {
         ["d", "general"],
         ["expiration", String(expiresAt)],
       ],
-      content: `🟢 ${name} active (ggcoder · ${process.env.AGENT_MODEL ?? "MiniMax-M3"})`,
+      content: `[active] ${name} ggcoder · ${process.env.AGENT_MODEL ?? "MiniMax-M3"}`,
     },
     keypair.skBytes
   );

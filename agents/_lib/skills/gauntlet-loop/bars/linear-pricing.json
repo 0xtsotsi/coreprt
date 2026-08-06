@@ -1,0 +1,11 @@
+{
+  "kind": "site",
+  "ref": {
+    "name": "Linear pricing page",
+    "url": "https://linear.app/pricing",
+    "owner": "Linear"
+  },
+  "fetch": "screenshot",
+  "comparable": "side-by-side",
+  "notes": "The pricing-page bar. The reference for any pricing or plan-presentation deliverable. The critic renders both at 1280x800, strips labels, asks which one is easier to scan and pick a plan from in under 10 seconds."
+}

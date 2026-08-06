@@ -1,0 +1,11 @@
+{
+  "kind": "site",
+  "ref": {
+    "name": "comaxx.nl launch case study",
+    "url": "https://comaxx.nl/cases",
+    "owner": "comaxx"
+  },
+  "fetch": "screenshot",
+  "comparable": "side-by-side",
+  "notes": "The marketing / launch-deliverable bar. comaxx.nl is the operator's stated benchmark for service offerings, structure, and content. Use this bar when the goal is a marketing campaign, a launch asset, or a customer-facing deliverable. The critic renders the case-study section at the same viewport as our output, strips both labels, and asks 'which one would a prospect click through?'."
+}
