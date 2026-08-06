@@ -32,6 +32,8 @@ One-shot commands (operator-driven, exit after publishing or reading):
   search    <name> "<query>" --channel <uuid> [--limit n]
   digest    <name> [--since <hours>]
   invite    <name> --ttl <hours> [--code-len n]
+  user-status <name> set --state <state> --text <text> [--emoji E] [--ttl D] [--reference URL]
+  user-status <name> clear
   crm-onboard <name> --client X --contact Y --scope Z [--budget-hours N] [--title T] [--memo-file F]
   crm-status  <name> --deal <dealId>
   crm-receipt <name> --deal X --scope Y --job Z --kind K --content C
@@ -182,13 +184,20 @@ case "$command" in
     done < <(selected_agents "$target")
     ;;
   status)
-    while IFS= read -r agent; do
-      if launchctl print "gui/$(id -u)/$(label_for "$agent")" >/dev/null 2>&1; then
-        echo "$agent: loaded"
-      else
-        echo "$agent: stopped"
-      fi
-    done < <(selected_agents "$target")
+    # Smart dispatch: when the third arg is `set`/`clear`, route to the
+    # NIP-38 user-status one-shot. Otherwise fall back to the lifecycle
+    # "loaded/stopped" check.
+    if [[ "${3:-}" == "set" || "${3:-}" == "clear" ]]; then
+      run_one_shot "user-status" "$target" "${@:3}"
+    else
+      while IFS= read -r agent; do
+        if launchctl print "gui/$(id -u)/$(label_for "$agent")" >/dev/null 2>&1; then
+          echo "$agent: loaded"
+        else
+          echo "$agent: stopped"
+        fi
+      done < <(selected_agents "$target")
+    fi
     ;;
   logs)
     while IFS= read -r agent; do
@@ -196,7 +205,7 @@ case "$command" in
       tail -n 50 "$LOG_ROOT/$agent/agent.log" "$LOG_ROOT/$agent/agent.err.log" 2>/dev/null || true
     done < <(selected_agents "$target")
     ;;
-  publish|req|search|digest|invite|crm-onboard|crm-status|crm-receipt)
+  publish|req|search|digest|invite|user-status|crm-onboard|crm-status|crm-receipt)
     run_one_shot "$command" "$target" "${@:3}"
     ;;
   help|--help|-h)
