@@ -271,6 +271,68 @@ ${verdict.body}`;
 }
 
 /**
+ * Optional multi-agent red-team hook. When `redTeam.agents` is provided, this
+ * routes the round through `runRedTeam()` and returns the coordinator's
+ * aggregate verdict as the kind:1111 body. When `redTeam` is omitted or has
+ * no agents, falls back to the single-critic ken autopilot path.
+ *
+ * Imported lazily to avoid a hard dep on agents/_lib/red-team.mjs at startup;
+ * the function is only loaded when the opt-in path is actually taken.
+ */
+export async function nextRoundWithRedTeam({ runId, builderOutput, builderEventId, redTeam }) {
+  const state = loadRunState(runId) ?? { runId, history: [], round: 0 };
+  state.round += 1;
+  const bar = loadBar(state.barName);
+  const barEnvelope = bar ?? { ref: { name: state.barName } };
+
+  // Lazy require so test suites that mock the ken critic do not pay for the
+  // red-team module load and so the module can be absent in minimal builds.
+  const { runRedTeam } = await import("./red-team.mjs");
+  const aggregate = await runRedTeam({
+    builderEventId,
+    builderPubkey: state.builderPubkey,
+    agents: redTeam.agents,
+    log: redTeam.log ?? (() => {}),
+    reviewTimeoutMs: redTeam.reviewTimeoutMs,
+  });
+
+  const verdict = aggregate.verdict ?? { kind: "human", body: "red-team produced no verdict" };
+  state.history.push({
+    round: state.round,
+    builderEventId,
+    verdict,
+    counts: aggregate.counts,
+    strongestDissent: aggregate.strongestDissent,
+  });
+  persistRunState(runId, state);
+
+  const counts = aggregate.counts ?? { win: 0, lose: 0, equal: 0, no_verdict: 0 };
+  const dissent = aggregate.strongestDissent;
+  const body = buildRedTeamVerdictBody({ verdict, bar: barEnvelope, round: state.round, runId, counts, dissent });
+
+  return {
+    verdict,
+    runId,
+    body,
+    done: verdict.kind === "win" || verdict.kind === "human" || state.round >= MAX_GAUNTLET_ROUNDS,
+    aggregate,
+  };
+}
+
+function buildRedTeamVerdictBody({ verdict, bar, round, runId, counts, dissent }) {
+  const verdictKw = (verdict.kind ?? "human").toUpperCase();
+  const tally = `[red-team] WIN ${counts.win} / LOSE ${counts.lose} / EQUAL ${counts.equal} / NO_VERDICT ${counts.no_verdict}`;
+  const dissentLine = dissent
+    ? `\nDISSENT: ${dissent.name}: ${dissent.verdict.kind.toUpperCase()} — ${dissent.verdict.body}`
+    : "\nNo dissent.";
+  return `[gauntlet] round ${round}/${MAX_GAUNTLET_ROUNDS} — ${verdictKw}
+bar: ${bar.ref.name ?? bar.ref.url ?? "unnamed"}
+run: ${runId}
+${tally}${dissentLine}
+${verdict.body ?? ""}`.trim();
+}
+
+/**
  * Resume a run from persisted state. Returns null if state is missing or
  * stale (older than 24h).
  */
