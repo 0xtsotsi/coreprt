@@ -3,6 +3,11 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { RelayClient } from "./relay-client.mjs";
 import { finalizeEvent, getKeypairFromHex, verifyEvent } from "./nostr.mjs";
+import {
+  buildStatusEventTemplate,
+  isStatusDisabled as statusDisabled,
+  KIND_USER_STATUS,
+} from "./user-status.mjs";
 
 const REQUIRED_ENV = [
   "AGENT_NAME",
@@ -48,7 +53,7 @@ const relay = new RelayClient({
     if (!isTriggeredChannelMessage(event)) return;
     rememberEvent(event.id);
     messageQueue = messageQueue
-      .then(() => handleMessage(event))
+      .then(() => handleMessageWithStatus(event))
       .catch((error) => log(`message handling failed: ${error.message}`));
   },
   log,
@@ -566,41 +571,114 @@ try {
 log(`subscribing to channel ${channelId}`);
 relay.subscribe({ kinds: [9], "#h": [channelId] });
 
-// ── NIP-38 presence ping (interim) ──────────────────────────────
-// Task 1d591845 is implementing the full NIP-38 (status pings, dnd,
-// working/idle/deep-build states). This is a one-shot kind:30315
-// publish on startup so the agent shows up as an active channel
-// member in the client roster. Will be replaced by the full
-// implementation when the task lands + merges.
-// Per NIP-38: d tag is the status type, content is the human-readable
-// status text, r/p/e tags are optional links. Expiration is a unix
-// timestamp after which the status is invalid (clients stop showing).
-// Defer until the AUTH handshake completes (max 10s) so the
-// publish doesn't race the AUTH challenge.
-try {
-  const authDeadline = Date.now() + 10_000;
-  while (!relay.authenticated && Date.now() < authDeadline) {
+// ── NIP-38 user status (kind 30315) ───────────────────────────
+// Full spec: https://github.com/nostr-protocol/nips/blob/master/38.md
+//
+// States:
+//   general (default) — persistent on the d:general coordinate.
+//   music, working    — persistent; the runtime auto-emits "working" while
+//                       a turn is in-flight and "idle" when waiting.
+//   dnd, idle, deep-build — TTL-bearing (default 1h). Idle/deep-build are
+//                       emitted by the runtime; dnd is set by the operator
+//                       via `coreprt-agent user-status <name> set --state dnd`.
+//
+// Auto-emit lifecycle transitions:
+//   startup  → general "active" with 1h expiry (preserves the prior interim
+//              presence ping behavior, so a dead agent self-clears within 1h).
+//   turn start → working "<agent> on <kind:9 reply>"  (no expiry)
+//   turn end   → idle "waiting" with 1h expiry (clears when idle > 1h)
+//   compare gauntlet running → deep-build "running gauntlet round N/M" (1h)
+//
+// Opt out by setting COREPRT_AGENT_NO_STATUS=1 in the agent env file.
+const statusLog = (...args) => log(`[status]`, ...args);
+
+// Track the current state so we don't churn publishes (only emit on change).
+let currentStatusState = null;
+let currentStatusText = null;
+
+async function publishStatus(state, text, opts = {}) {
+  if (statusDisabled()) {
+    statusLog(`skip (COREPRT_AGENT_NO_STATUS=1) state=${state}`);
+    return { skipped: true };
+  }
+  // Defer until AUTH completes (max 10s) so the publish doesn't race the
+  // NIP-42 challenge. Mirrors the behavior of the prior interim ping.
+  const deadline = Date.now() + 10_000;
+  while (!relay.authenticated && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 200));
   }
-  if (!relay.authenticated) throw new Error("auth timeout");
-  // 1h expiry so a dead agent's "active" status self-clears.
-  const expiresAt = Math.floor(Date.now() / 1000) + 3600;
-  const statusEvent = finalizeEvent(
-    {
-      kind: 30315,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [
-        ["d", "general"],
-        ["expiration", String(expiresAt)],
-      ],
-      content: `[active] ${name} ggcoder · ${process.env.AGENT_MODEL ?? "MiniMax-M3"}`,
-    },
-    keypair.skBytes
-  );
-  const result = await relay.publish(statusEvent);
-  log(`presence ping published: ${JSON.stringify(result)}`);
-} catch (err) {
-  log(`presence ping failed: ${err.message}`);
+  if (!relay.authenticated) {
+    statusLog(`skip (auth timeout) state=${state}`);
+    return { skipped: true, reason: "auth-timeout" };
+  }
+  if (currentStatusState === state && currentStatusText === text && !opts.force) {
+    return { skipped: true, reason: "unchanged" };
+  }
+  try {
+    const template = buildStatusEventTemplate({
+      state,
+      text,
+      emoji: opts.emoji,
+      reference: opts.reference,
+      ttlSeconds: opts.ttlSeconds,
+    });
+    const event = finalizeEvent(template, keypair.skBytes);
+    if (event.kind !== KIND_USER_STATUS) {
+      throw new Error(`internal: expected kind ${KIND_USER_STATUS}, got ${event.kind}`);
+    }
+    const result = await relay.publish(event);
+    currentStatusState = state;
+    currentStatusText = text;
+    statusLog(
+      `state=${state} id=${event.id.slice(0, 12)}… ` +
+        `tags=${event.tags.map((t) => t[0]).join(",")} ` +
+        `result.ok=${result.ok} ${result.reason ?? ""}`
+    );
+    return { event, result };
+  } catch (err) {
+    statusLog(`publish failed state=${state}: ${err.message}`);
+    return { error: err.message };
+  }
+}
+
+// Initial presence ping + reconnect retry. The RelayClient's `authenticated`
+// flag flips true on AUTH and false on disconnect; we poll it and re-publish
+// whenever it transitions false → true. This makes the operator-visible
+// "active" badge self-heal after relay flapping without modifying
+// RelayClient itself.
+let wasAuthed = false;
+function statusWatchdogTick() {
+  const model = process.env.AGENT_MODEL ?? "MiniMax-M3";
+  if (relay.authenticated && !wasAuthed) {
+    wasAuthed = true;
+    publishStatus("general", `[active] ${name} ggcoder · ${model}`, {
+      ttlSeconds: 3600,
+      force: true,
+    }).catch((err) => statusLog(`initial ping error: ${err.message}`));
+  } else if (!relay.authenticated && wasAuthed) {
+    wasAuthed = false;
+    statusLog(`relay deauthenticated; will re-publish on next AUTH`);
+  }
+}
+const statusWatchdog = setInterval(statusWatchdogTick, 2_000);
+statusWatchdog.unref?.();
+
+// Wrap handleMessage so we can flip working→idle around each turn.
+// The outer messageQueue chain in onEvent() already serializes turns, so we
+// don't need a re-entrancy guard here — each handleMessageWithStatus runs to
+// completion before the next turn starts.
+const handleMessageBase = handleMessage;
+let turnCounter = 0;
+async function handleMessageWithStatus(event) {
+  turnCounter += 1;
+  const turnId = turnCounter;
+  await publishStatus("working", `${name} on turn #${turnId}: ${event.content.slice(0, 80)}`);
+  try {
+    await handleMessageBase(event);
+  } finally {
+    // working → idle on exit. 1h expiry so a dead agent self-clears.
+    await publishStatus("idle", `${name} waiting`, { ttlSeconds: 3600 });
+  }
 }
 
 // ── Hello-world one-shot (interim) ──────────────────────────────
