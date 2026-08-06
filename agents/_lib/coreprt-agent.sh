@@ -37,6 +37,8 @@ One-shot commands (operator-driven, exit after publishing or reading):
   crm-onboard <name> --client X --contact Y --scope Z [--budget-hours N] [--title T] [--memo-file F]
   crm-status  <name> --deal <dealId>
   crm-receipt <name> --deal X --scope Y --job Z --kind K --content C
+  dispatch    <name> [show|inspect|resolve|test] [--tag k=v ...] [--content C] [--kind N]
+  lemma-bridge <name> [env-init [path]|cursor [reset]|dedupe|check|delete]
 
 Agent secrets live in ~/.config/coreprt/agents/<name>.env with mode 600.
 CRM bridge config (optional) lives in ~/.config/coreprt/crm.env with mode 600.
@@ -205,7 +207,7 @@ case "$command" in
       tail -n 50 "$LOG_ROOT/$agent/agent.log" "$LOG_ROOT/$agent/agent.err.log" 2>/dev/null || true
     done < <(selected_agents "$target")
     ;;
-  publish|req|search|digest|invite|user-status|crm-onboard|crm-status|crm-receipt)
+  publish|req|search|digest|invite|user-status|crm-onboard|crm-status|crm-receipt|dispatch|lemma-bridge)
     run_one_shot "$command" "$target" "${@:3}"
     ;;
   help|--help|-h)

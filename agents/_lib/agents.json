@@ -1,0 +1,34 @@
+{
+  "$schema": "./agents.schema.json",
+  "_doc": "Agent registry. The dispatch layer (agents/_lib/dispatch.mjs) and the runtime (agents/_lib/runtime.mjs) read this file. Adding a new department = add one entry here + create agents/<name>/run/start.sh + add the per-agent env file at ~/.config/coreprt/agents/<name>.env. No code changes required. The hardcoded AGENTS=(...) array in coreprt-agent.sh is the only remaining hand-edit; that gap is tracked separately.",
+  "version": 1,
+  "agents": [
+    {
+      "name": "fizz",
+      "role": "router",
+      "scopes": ["*"],
+      "trigger": "@fizz",
+      "description": "Fizz is the CorePrt fleet router. Default for unhandled scope and the catch-all `@fizz` trigger."
+    },
+    {
+      "name": "bumble",
+      "role": "builder",
+      "scopes": ["web", "frontend", "landing-page", "thecardyard"],
+      "trigger": "@bumble",
+      "description": "Bumble is the webrnds-default site builder. Routes for web/scope, frontend, landing-page, thecardyard."
+    },
+    {
+      "name": "goji",
+      "role": "generalist",
+      "scopes": ["docs", "research", "general"],
+      "trigger": "@goji",
+      "description": "Goji is the ggcoder-minimax generalist. Routes for docs, research, and unhandled scope."
+    }
+  ],
+  "scopeAliases": {
+    "landing-page-v2": "web",
+    "thecardyard-v3": "thecardyard",
+    "marketing": "marketing"
+  },
+  "unrouted": "fizz"
+}
