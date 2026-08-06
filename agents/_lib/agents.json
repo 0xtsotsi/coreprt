@@ -27,8 +27,7 @@
   ],
   "scopeAliases": {
     "landing-page-v2": "web",
-    "thecardyard-v3": "thecardyard",
-    "marketing": "marketing"
+    "thecardyard-v3": "thecardyard"
   },
   "unrouted": "fizz"
 }
