@@ -238,3 +238,26 @@ Module path is relative to `dist/core/`. "Sync target in CorePrt" is one of: `co
 | IGNORE | ~10 modules (UI surface, benchmarks, telemetry) |
 
 Total = 121 production modules inventoried. Test modules (121 `.test.d.ts` siblings) excluded — they're the harnesses that prove the above; nothing new to sync.
+
+---
+
+## gg-framework
+
+Source: `@kenkaiiii/gg-framework@…/` — a sibling npm package in the gg-framework monorepo. Mirrored verbatim into `.gg/framework/<subdir>/` by `scripts/sync-ggcoder.mjs --source gg-framework`. The script only adds this source if the package is installed; missing-package is a log-and-skip, not a crash.
+
+Surface area (4 mirror roots, plain markdown files):
+
+| Subdir | What it carries | Sync target in CorePrt |
+|---|---|---|
+| `skills/` | Skill templates (markdown with YAML frontmatter; `name` + `description`). One file per skill. | `.gg/framework/skills/<name>.md` |
+| `commands/` | Slash command bodies (markdown with YAML frontmatter; `name` + `description`). One file per command. | `.gg/framework/commands/<name>.md` |
+| `plans/` | Plan templates / long-form agent plans. | `.gg/framework/plans/<name>.md` |
+| `reviews/` | Review checklists / rubric docs. | `.gg/framework/reviews/<name>.md` |
+
+Sync behavior:
+- Each file is mirrored verbatim (no frontmatter rewrite, no extraction).
+- Per-file SHA256 + mtime are recorded in `.gg/.sync-manifest.json`; subsequent syncs skip files whose source is unchanged.
+- `--prune` removes `.gg/framework/*` files that no longer exist in the source package, gated on a manifest <24h old.
+- If the package is not installed at `~/.npm-global/lib/node_modules/@kenkaiiii/gg-framework/`, the source logs `gg-framework not installed at <path> — skipping` and exits 0.
+
+This section is a placeholder until the package is installed; populate by listing the actual files under each subdir of the installed package.
