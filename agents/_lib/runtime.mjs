@@ -600,3 +600,34 @@ try {
 } catch (err) {
   log(`presence ping failed: ${err.message}`);
 }
+
+// ── Hello-world one-shot (interim) ──────────────────────────────
+// Operator can set AGENT_HELLO_WORLD to publish a single kind:9 to
+// the channel on startup. Used to verify the agent is in the right
+// community after channel migration. Set to empty to disable.
+if (process.env.AGENT_HELLO_WORLD) {
+  try {
+    if (!relay.authenticated) throw new Error("relay not authenticated");
+    const helloEvent = finalizeEvent(
+      {
+        kind: 9,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ["h", channelId],
+          ["subject", "hello-world"],
+          ["client", "ggcoder-minimax"],
+        ],
+        content: process.env.AGENT_HELLO_WORLD,
+      },
+      keypair.skBytes
+    );
+    const result = await relay.publish(helloEvent);
+    log(
+      result?.ok
+        ? `hello-world published: ${JSON.stringify(result)}`
+        : `hello-world not published: ${result?.reason ?? "unknown"}`
+    );
+  } catch (err) {
+    log(`hello-world failed: ${err.message}`);
+  }
+}
