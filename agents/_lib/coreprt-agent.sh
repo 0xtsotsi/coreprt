@@ -27,13 +27,17 @@ Lifecycle (one per agent or "all"):
   sync-ggcoder  Re-sync gg-coder built-in capabilities (--force / --dry-run)
 
 One-shot commands (operator-driven, exit after publishing or reading):
-  publish <name> [--kind k] [--content text] [--tag k=v ...]
-  req     <name> --kind k [--tag k=v ...] [--search q] [--limit n]
-  search  <name> "<query>" --channel <uuid> [--limit n]
-  digest  <name> [--since <hours>]
-  invite  <name> --ttl <hours> [--code-len n]
+  publish   <name> [--kind k] [--content text] [--tag k=v ...]
+  req       <name> --kind k [--tag k=v ...] [--search q] [--limit n]
+  search    <name> "<query>" --channel <uuid> [--limit n]
+  digest    <name> [--since <hours>]
+  invite    <name> --ttl <hours> [--code-len n]
+  crm-onboard <name> --client X --contact Y --scope Z [--budget-hours N] [--title T] [--memo-file F]
+  crm-status  <name> --deal <dealId>
+  crm-receipt <name> --deal X --scope Y --job Z --kind K --content C
 
 Agent secrets live in ~/.config/coreprt/agents/<name>.env with mode 600.
+CRM bridge config (optional) lives in ~/.config/coreprt/crm.env with mode 600.
 USAGE
 }
 
@@ -192,7 +196,7 @@ case "$command" in
       tail -n 50 "$LOG_ROOT/$agent/agent.log" "$LOG_ROOT/$agent/agent.err.log" 2>/dev/null || true
     done < <(selected_agents "$target")
     ;;
-  publish|req|search|digest|invite)
+  publish|req|search|digest|invite|crm-onboard|crm-status|crm-receipt)
     run_one_shot "$command" "$target" "${@:3}"
     ;;
   help|--help|-h)
