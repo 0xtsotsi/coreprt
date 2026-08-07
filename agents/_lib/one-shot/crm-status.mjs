@@ -7,7 +7,7 @@
 //   coreprt-agent crm-status <name> --deal <dealId>
 //   coreprt-agent crm-status <name> --deal <dealId> --nostr-only
 
-import { runWithRelay, awaitEose } from "../writer.mjs";
+import { runWithRelay } from "../writer.mjs";
 import { crmStatus } from "../crm-bridge.mjs";
 
 function parseArgs(argv) {
@@ -59,10 +59,7 @@ async function main() {
     async (session) => {
       // Fetch kind:1 receipts whose ["deal", <dealId>] tag matches via
       // the writer's REQ helper, which awaits EOSE and returns the events.
-      // `awaitEose` is a top-level export of writer.mjs that takes the
-      // session and the filter; do not call it as a method on session.
-      const receipts = await awaitEose(
-        session,
+      const receipts = await session.awaitEose(
         { kinds: [1], "#deal": [flags.dealId] },
         { quietMs: 1500 }
       );

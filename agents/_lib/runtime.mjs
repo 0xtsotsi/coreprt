@@ -3,7 +3,6 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { RelayClient } from "./relay-client.mjs";
 import { finalizeEvent, getKeypairFromHex, verifyEvent } from "./nostr.mjs";
-import { resolveAgentForEvent } from "./dispatch.mjs";
 import {
   buildStatusEventTemplate,
   isStatusDisabled as statusDisabled,
@@ -27,10 +26,7 @@ const relayUrl = process.env.AGENT_RELAY_URL;
 const channelId = process.env.AGENT_CHANNEL_UUID;
 const runtime = (process.env.AGENT_RUNTIME ?? "ggcoder").toLowerCase();
 const systemPrompt = process.env.AGENT_SYSTEM_PROMPT ?? "";
-// AGENT_TRIGGER is no longer read here — the dispatch layer
-// (agents/_lib/dispatch.mjs) reads each agent's @-mention trigger from
-// agents.json's `trigger` field. If the operator wants to override the
-// trigger for a single agent, set it in agents.json, not in the env.
+const trigger = (process.env.AGENT_TRIGGER ?? `@${name}`).toLowerCase();
 const keypair = getKeypairFromHex(process.env.AGENT_NSEC);
 const expectedPublicKey = process.env.AGENT_PK;
 const log = (...args) =>
@@ -68,38 +64,18 @@ function isTriggeredChannelMessage(event) {
   if (seenEventIds.has(event.id) || event.pubkey === keypair.pkHex) return false;
   const eventChannel = event.tags.find((tag) => tag[0] === "h")?.[1];
   if (eventChannel !== channelId) return false;
-
-  // ── Slash-command short-circuit ──
-  // `/<cmd> ...` addresses the agent that owns the command, regardless of
-  // scope. The dispatch layer would otherwise route the bare slash event
-  // to the unrouted default (fizz) and only fizz would handle slash
-  // commands. That breaks the existing workflow where the operator (or
-  // another agent) addresses `/compare` / `/review` / `/gauntlet` at a
-  // specific agent directly. Slash commands are the only path that
-  // bypasses dispatch — every other event goes through resolveAgentForEvent.
+  const content = event.content.toLowerCase();
+  // Standard trigger: @<agent>
+  if (content.includes(trigger)) return true;
+  // Slash commands are addressed at a specific agent via the command name.
+  // Operator can say `/review` (no @) and the receiving agent will route it.
+  // We match against the registered slash commands to avoid false positives.
+  // loadSlashCommands accepts `null` for cwd and falls back to the repo-root
+  // search path on its own.
   const cmds = loadSlashCommands(process.env.GG_CWD);
   const isSlash = /^\s*\/([a-zA-Z0-9_-]+)/.exec(event.content);
   if (isSlash && cmds.has(isSlash[1].toLowerCase())) return true;
-
-  // ── dispatch layer (PR-7) ── route by tag, alias, trigger, or bar.
-  // Returns the target agent name; if it matches `name` (us), we accept
-  // the event. Scope/assign/bar tags take priority over @<trigger>
-  // mention. The dispatch module's unrouted default is fizz, so
-  // unconstrained chatter (no @mention, no scope) will land on fizz by
-  // default — every other agent must be addressed explicitly. This is
-  // the operator's safety choice: scope/assign tags are loud, @mentions
-  // are loud, but bare messages only get processed by the router.
-  const route = resolveAgentForEvent(event);
-  if (route.agent && route.agent !== name) {
-    if (route.route === "scope-unclaimed" || route.route === "assign-unknown") {
-      log(`[dispatch] not for us (${route.route}): ${route.reason}`);
-    }
-    return false;
-  }
-  if (route.route === "scope-unclaimed" || route.route === "assign-unknown") {
-    log(`[dispatch] fell through to ${name} (${route.route}): ${route.reason}`);
-  }
-  return true;
+  return false;
 }
 
 function rememberEvent(eventId) {

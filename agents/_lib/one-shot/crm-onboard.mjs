@@ -103,9 +103,7 @@ async function main() {
       // session so AUTH and relay acceptance are handled consistently.
       const published = await session.publish(result.dealEvent);
       if (published.ok === true) {
-        // writer.mjs session.publish() returns { ok, reason } only; the event
-        // id lives on the event we passed in (result.dealEvent.id).
-        process.stdout.write(`onboarded deal=${result.dealId} nostr_event=${result.dealEvent.id}\n`);
+        process.stdout.write(`onboarded deal=${result.dealId} nostr_event=${published.id}\n`);
         process.exit(0);
       }
       process.stderr.write(`rejected: ${published.reason || "unknown"}\n`);
