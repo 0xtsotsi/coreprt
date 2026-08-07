@@ -90,8 +90,10 @@ async function main() {
       // pattern and could cause the relay id and trycompai id to differ.)
       const published = await session.publish(result.receiptEvent);
       if (published.ok === true) {
-        process.stdout.write(`receipt published kind:1 id:${published.id}\n`);
-        process.stdout.write(`nostr:${published.id}\n`);
+        // writer.mjs session.publish() returns { ok, reason } only; the event
+        // id lives on the event we passed in (result.receiptEvent.id).
+        process.stdout.write(`receipt published kind:1 id:${result.receiptEvent.id}\n`);
+        process.stdout.write(`nostr:${result.receiptEvent.id}\n`);
         process.exit(0);
       }
       process.stderr.write(`rejected: ${published.reason || "unknown"}\n`);
