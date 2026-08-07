@@ -37,6 +37,8 @@ One-shot commands (operator-driven, exit after publishing or reading):
   crm-onboard <name> --client X --contact Y --scope Z [--budget-hours N] [--title T] [--memo-file F]
   crm-status  <name> --deal <dealId>
   crm-receipt <name> --deal X --scope Y --job Z --kind K --content C
+  dispatch    <name> [show|inspect|resolve|test] [--tag k=v ...] [--content C] [--kind N]
+  lemma-bridge <name> [env-init [path]|cursor [reset]|dedupe|check|delete]
 
 Agent secrets live in ~/.config/coreprt/agents/<name>.env with mode 600.
 CRM bridge config (optional) lives in ~/.config/coreprt/crm.env with mode 600.
@@ -134,25 +136,42 @@ run_one_shot() {
     echo "usage: coreprt-agent $command <fizz|bumble|goji> [args...]" >&2
     exit 64
   fi
-  case "$agent" in fizz|bumble|goji) ;; *)
-    echo "unknown agent: $agent" >&2
-    exit 64
-    ;;
+  # `dispatch` and `lemma-bridge` are read-only inspection tools that
+  # accept any name as a lookup key (e.g. the operator can test what
+  # would happen to a hypothetical `marketing-bot` event without
+  # having a real per-agent env). For all other one-shots the agent
+  # name must match a registered runtime agent.
+  case "$command" in
+    dispatch|lemma-bridge) ;; # accept any name
+    *) case "$agent" in
+         fizz|bumble|goji) ;;
+         *) echo "unknown agent: $agent" >&2; exit 64 ;;
+       esac ;;
   esac
   local env_file="$CONFIG_ROOT/$agent.env"
   if [[ ! -f "$env_file" ]]; then
-    echo "missing $env_file" >&2
-    exit 78
+    if [[ "$command" == "dispatch" || "$command" == "lemma-bridge" ]]; then
+      # Read-only inspection; the env file is not required. We still
+      # need *some* env to source so set safe defaults.
+      export AGENT_NAME="$agent"
+      export AGENT_RELAY_URL="${AGENT_RELAY_URL:-ws://127.0.0.1:3300}"
+      export BUZZ_RELAY_HOST="${BUZZ_RELAY_HOST:-coreprt.webrnds.com}"
+      export AGENT_LOG_PREFIX="${AGENT_LOG_PREFIX:-$agent}"
+    else
+      echo "missing $env_file" >&2
+      exit 78
+    fi
+  else
+    sync_runtime
+    set -a
+    # shellcheck disable=SC1090
+    source "$env_file"
+    set +a
+    export AGENT_NAME="$agent"
+    export AGENT_RELAY_URL="${AGENT_RELAY_URL:-ws://127.0.0.1:3300}"
+    export BUZZ_RELAY_HOST="${BUZZ_RELAY_HOST:-coreprt.webrnds.com}"
+    export AGENT_LOG_PREFIX="${AGENT_LOG_PREFIX:-$agent}"
   fi
-  sync_runtime
-  set -a
-  # shellcheck disable=SC1090
-  source "$env_file"
-  set +a
-  export AGENT_NAME="$agent"
-  export AGENT_RELAY_URL="${AGENT_RELAY_URL:-ws://127.0.0.1:3300}"
-  export BUZZ_RELAY_HOST="${BUZZ_RELAY_HOST:-coreprt.webrnds.com}"
-  export AGENT_LOG_PREFIX="${AGENT_LOG_PREFIX:-$agent}"
   local cmd_dir="$INSTALL_ROOT/_lib/one-shot"
   if [[ ! -f "$cmd_dir/$command.mjs" ]]; then
     echo "no such one-shot: $command (missing $cmd_dir/$command.mjs)" >&2
@@ -205,7 +224,7 @@ case "$command" in
       tail -n 50 "$LOG_ROOT/$agent/agent.log" "$LOG_ROOT/$agent/agent.err.log" 2>/dev/null || true
     done < <(selected_agents "$target")
     ;;
-  publish|req|search|digest|invite|user-status|crm-onboard|crm-status|crm-receipt)
+  publish|req|search|digest|invite|user-status|crm-onboard|crm-status|crm-receipt|dispatch|lemma-bridge)
     run_one_shot "$command" "$target" "${@:3}"
     ;;
   help|--help|-h)

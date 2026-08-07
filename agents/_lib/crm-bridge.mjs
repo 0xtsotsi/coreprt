@@ -143,16 +143,24 @@ export function buildDealMemoTemplate({ dealId, clientPubkey, scope, budgetHours
 }
 
 /**
- * Build a kind:43001 (JOB_REQUEST) envelope for routing a CRM-originated
- * task to the appropriate CorePrt agent. Tags per the planning doc:
+ * Build a JOB_REQUEST envelope for routing a CRM-originated task to the
+ * appropriate CorePrt agent. Tags per the planning doc:
  *
  *   ["scope", "<scope-slug>"]
  *   ["deal", "<deal-id>"]
  *   ["client", "<contact-pubkey>"]
  *   ["gauntlet", "<bar-slug>"]            optional: when present, gauntlet
  *                                          delegates as documented in PR-3
+ *
+ * Defaults to `kind: 1` (regular note) because the vendored CorePrt relay
+ * (`crates/buzz-relay/src/handlers/ingest.rs:316`) does not wire
+ * `KIND_JOB_REQUEST = 43001` into its allowlist — it returns
+ * `"restricted: unknown event kind"`. The kind is purely a discriminator;
+ * the routing tags above carry all the meaning a dispatcher needs. When
+ * the vendored relay eventually wires 43001, pass `kindOverride: 43001`
+ * to keep the plan-doc constant alive.
  */
-export function buildJobRequestTemplate({ scope, dealId, clientPubkey, gauntlet, content, createdAt }) {
+export function buildJobRequestTemplate({ scope, dealId, clientPubkey, gauntlet, content, createdAt, kindOverride }) {
   if (!scope || !dealId || !clientPubkey) {
     throw new Error("scope, dealId, and clientPubkey are required");
   }
@@ -163,7 +171,7 @@ export function buildJobRequestTemplate({ scope, dealId, clientPubkey, gauntlet,
   ];
   if (gauntlet) tags.push(["gauntlet", gauntlet]);
   return {
-    kind: 43001,
+    kind: kindOverride ?? 1,
     created_at: createdAt ?? Math.floor(Date.now() / 1000),
     tags,
     content: content ?? `Deal ${dealId}: work on ${scope}`,

@@ -61,13 +61,27 @@ test("crm: buildJobRequestTemplate sets the expected tags", () => {
     scope: "landing-page-v2",
     content: "Build the hero section",
   });
-  assert.equal(t.kind, 43001);
+  // Default kind is 1 because the vendored relay's allowlist rejects 43001
+  // (see crm-bridge.mjs: doc comment on buildJobRequestTemplate). Pass
+  // `kindOverride: 43001` to get the plan-doc constant when the relay
+  // eventually wires it into the allowlist.
+  assert.equal(t.kind, 1);
   const tagMap = Object.fromEntries(t.tags);
   assert.equal(tagMap.scope, "landing-page-v2");
   assert.equal(tagMap.deal, "deal-uuid");
   assert.equal(tagMap.client, "50769b0f");
   // No gauntlet tag unless provided
   assert.equal(tagMap.gauntlet, undefined);
+});
+
+test("crm: buildJobRequestTemplate honors kindOverride", () => {
+  const t = buildJobRequestTemplate({
+    dealId: "deal-uuid",
+    clientPubkey: "50769b0f",
+    scope: "landing-page-v2",
+    kindOverride: 43001,
+  });
+  assert.equal(t.kind, 43001);
 });
 
 test("crm: buildJobRequestTemplate includes gauntlet tag when provided", () => {
